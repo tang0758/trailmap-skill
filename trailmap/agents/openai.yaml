@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trailmap"
+  short_description: "Track branch paths and resume context"
+  default_prompt: "Use $trailmap to mark this decision branch and keep pending paths resumable."
