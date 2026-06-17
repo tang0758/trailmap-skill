@@ -1,6 +1,6 @@
 ---
 name: trailmap
-description: Track decision branches and exploration paths during Codex conversations. Use when the user wants to mark a branching point, remember skipped alternatives, list pending paths, resume a previous path with clean or informed context, record path progress, close a path, rename the active topic, or generate a Mermaid/text map of explored and pending branches.
+description: Track decision branches and exploration paths during Codex conversations. Use when the user wants to mark a branching point, remember skipped alternatives, add a pending path without switching away from the current path, list pending paths, resume a previous path with clean or informed context, record path progress, close a path, rename the active topic, or generate a Mermaid/text map of explored and pending branches.
 ---
 
 # Trailmap
@@ -125,6 +125,33 @@ Path key rules:
 - Never overwrite an existing path key.
 
 Before writing, show a confirmation draft containing topic, decision, common context, paths, active path, and any status changes.
+
+### `mark pending <idea>`
+
+Add a new pending path beside the current active path without switching work context.
+
+Use this when the user is working on one path and temporarily thinks of another possibility that should be remembered for later, while the current `active_path_id` must remain unchanged.
+
+Behavior:
+
+- Require an active topic and active path.
+- Find the parent decision of the current active path.
+- Add one new path node as another child of that same parent decision.
+- Set the new path status to `pending`.
+- Keep the current active path status as `active`.
+- Keep `active_path_id` unchanged.
+- Do not draft a leave-summary for the current active path.
+- Do not create a new decision node unless the user explicitly asks for a new decision point.
+
+Accept natural language equivalents such as:
+
+```text
+mark pending 可能是缓存写入顺序导致，先记下来
+mark 先不要切走，旁边加一个 pending：检查网络重试
+mark 继续当前 A，但把服务端限流作为待回溯路径记录
+```
+
+Before writing, show a confirmation draft containing the current active path, the parent decision, the new pending path key/title/goal/hypothesis, and the unchanged `active_path_id`.
 
 ### `mark list`
 
@@ -259,6 +286,7 @@ Write operations include:
 
 ```text
 mark
+mark pending
 mark update
 mark resume
 mark close

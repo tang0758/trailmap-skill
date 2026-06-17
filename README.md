@@ -32,6 +32,7 @@ Core commands:
 mark
 mark list
 mark show
+mark pending <idea>
 mark update <path_key>
 mark resume <path_key> clean
 mark resume <path_key> informed
@@ -40,6 +41,8 @@ mark rename <topic title>
 mark map
 mark map text
 ```
+
+Use `mark pending <idea>` when you want to remember another possible path beside the current active path without switching away from the current work.
 
 Trailmap stores workspace-local branch records under:
 
