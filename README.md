@@ -64,17 +64,27 @@ Core commands:
 
 ```text
 mark
+mark pending <idea>
 mark list
 mark show
-mark pending <idea>
-mark update <path_key>
-mark resume <path_key> clean
-mark resume <path_key> informed
-mark close <path_key>
+mark show <key>
+mark update <key>
+mark resume <key> clean
+mark resume <key> informed
+mark close <key>
 mark rename <topic title>
 mark map
 mark map text
 ```
+
+Model basics:
+
+- A topic stores a flat `paths` list.
+- Each path has a unique `key`, optional `parent`, `status`, `created_from`, `goal`, `hypothesis`, and `updates`.
+- Path statuses are `active`, `pending`, `paused`, and `closed`.
+- Closed paths use `closed_as`: `done`, `blocked`, or `discarded`.
+- `mark` creates child paths under the current active path.
+- `mark pending <idea>` adds a sibling pending path without changing the active path.
 
 Use `mark pending <idea>` when you want to remember another possible path beside the current active path without switching away from the current work.
 
