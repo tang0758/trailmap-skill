@@ -1,8 +1,10 @@
 # Trailmap Skill
 
-Trailmap is a Codex skill for tracking decision branches during a conversation. It helps mark branching points, remember skipped paths, resume a path with clean or informed context, record path progress, and export a Mermaid or text map.
+Trailmap is an Agent Skill for tracking decision branches during an AI coding conversation. It is designed to work with skill-capable coding agents such as Codex and Claude Code.
 
-## Install
+It helps mark branching points, remember skipped paths, add pending paths without switching away from current work, resume a path with clean or informed context, record path progress, and export a Mermaid or text map.
+
+## Install for Codex
 
 In Codex, ask:
 
@@ -18,12 +20,44 @@ python "$env:USERPROFILE\.codex\skills\.system\skill-installer\scripts\install-s
 
 Restart Codex after installing so the skill is discovered.
 
+## Install for Claude Code
+
+Personal skill, available across projects:
+
+```bash
+mkdir -p ~/.claude/skills
+git clone https://github.com/tang0758/trailmap-skill.git /tmp/trailmap-skill
+cp -R /tmp/trailmap-skill/trailmap ~/.claude/skills/trailmap
+```
+
+Project skill, available only in the current repository:
+
+```bash
+mkdir -p .claude/skills
+git clone https://github.com/tang0758/trailmap-skill.git /tmp/trailmap-skill
+cp -R /tmp/trailmap-skill/trailmap .claude/skills/trailmap
+```
+
+In Claude Code, invoke it with:
+
+```text
+/trailmap
+```
+
+Claude Code watches skill directories for changes, but restart the session if the top-level skills directory did not exist when the session started.
+
 ## Usage
 
-Invoke the skill explicitly:
+Invoke the skill explicitly in Codex:
 
 ```text
 $trailmap
+```
+
+Invoke the skill explicitly in Claude Code:
+
+```text
+/trailmap
 ```
 
 Core commands:
@@ -47,7 +81,9 @@ Use `mark pending <idea>` when you want to remember another possible path beside
 Trailmap stores workspace-local branch records under:
 
 ```text
-.codex/marks/
+.trailmap/marks/
 ```
+
+If an older workspace already has `.codex/marks/`, Trailmap can continue using it for backward compatibility.
 
 It does not automatically stash, revert, commit, or change git state.

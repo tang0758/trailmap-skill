@@ -1,18 +1,18 @@
 ---
 name: trailmap
-description: Track decision branches and exploration paths during Codex conversations. Use when the user wants to mark a branching point, remember skipped alternatives, add a pending path without switching away from the current path, list pending paths, resume a previous path with clean or informed context, record path progress, close a path, rename the active topic, or generate a Mermaid/text map of explored and pending branches.
+description: Track decision branches and exploration paths during AI coding agent conversations. Use when the user wants to mark a branching point, remember skipped alternatives, add a pending path without switching away from the current path, list pending paths, resume a previous path with clean or informed context, record path progress, close a path, rename the active topic, or generate a Mermaid/text map of explored and pending branches.
 ---
 
 # Trailmap
 
-Manage decision branches for a workspace. Persist branch state under `.codex/marks/`. Treat records as user-confirmed artifacts: generate drafts first, ask the user to confirm or edit, then write to disk.
+Manage decision branches for a workspace. Persist branch state under `.trailmap/marks/` by default. If an existing `.codex/marks/` directory is already present, continue using it for backward compatibility unless the user asks to migrate. Treat records as user-confirmed artifacts: generate drafts first, ask the user to confirm or edit, then write to disk.
 
 ## Storage
 
 Use workspace-local storage:
 
 ```text
-.codex/marks/
+.trailmap/marks/
   index.json
   <topic-id>.json
 ```
