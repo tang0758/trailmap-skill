@@ -140,9 +140,11 @@ Rules:
 
 ## Commands
 
-Support natural language around these command forms.
+Arguments after explicit skill invocation are direct subcommands. Claude Code uses `/trailmap <subcommand>`; Codex uses `$trailmap <subcommand>`. No arguments creates a branch.
 
-### `mark`
+For backward compatibility, ignore one optional leading `mark` before parsing. Accept legacy and natural-language forms, but do not recommend them.
+
+### No subcommand
 
 Create a branch.
 
@@ -168,7 +170,7 @@ Path key rules:
 
 Before writing, show a confirmation draft containing topic, current active path if any, leave-summary if any, new paths, selected active path, and status changes.
 
-### `mark pending <idea>`
+### `pending <idea>`
 
 Add a pending sibling path without switching work context.
 
@@ -182,19 +184,19 @@ Behavior:
 - Keep the current active path status as `active`.
 - Keep `topic.active` unchanged.
 - Do not draft a leave-summary for the current active path.
-- Do not create child paths; use `mark` for child branching.
+- Do not create child paths; use no subcommand for child branching.
 
 Accept natural language equivalents such as:
 
 ```text
-mark pending 可能是缓存写入顺序导致，先记下来
-mark 先不要切走，旁边加一个 pending：检查网络重试
-mark 继续当前 A，但把服务端限流作为待回溯路径记录
+pending 可能是缓存写入顺序导致，先记下来
+pending 检查网络重试，先不要切走
+pending 服务端限流，继续当前 A
 ```
 
 Before writing, show a confirmation draft containing the current active path, the new pending path key/title/goal/hypothesis, its `parent`, and the unchanged `topic.active`.
 
-### `mark list`
+### `list`
 
 Show a cross-topic dashboard for the workspace.
 
@@ -211,7 +213,7 @@ For active, pending, and paused paths, show only `key`, `title`, and compact cod
 
 For closed paths, show `key`, `title`, `closed_as`, and `closed_reason`. Do not expand full `updates` in list output.
 
-### `mark show`
+### `show [key]`
 
 Show details for the active topic only.
 
@@ -226,14 +228,14 @@ Default:
 Also support:
 
 ```text
-mark show <key>
+show <key>
 ```
 
 Show that path in the active topic, including `created_from`, merged path description, complete `updates`, codechange details, and closure fields if closed.
 
-Do not support `mark show <topic_id>` in v1.
+Do not support `show <topic_id>` in v1.
 
-### `mark update <key>`
+### `update <key>`
 
 Generate a structured update draft for the path:
 
@@ -252,7 +254,7 @@ Use git/workspace context to infer changed files when possible, but do not requi
 
 If `status_after` is `closed`, set top-level `closed_as`, `closed_reason`, and `closed_at`. If `status_after` is not `closed`, ensure top-level closure fields are absent.
 
-### `mark resume <key> clean|informed`
+### `resume <key> clean|informed`
 
 Switch active work path inside the active topic. `clean` and `informed` are required unless the user clearly states the mode in natural language.
 
@@ -270,8 +272,8 @@ If target path is `closed`, warn that it is closed and ask for explicit reopen c
 For cross-topic resume, support:
 
 ```text
-mark resume <topic_id> <key> clean
-mark resume <topic_id> <key> informed
+resume <topic_id> <key> clean
+resume <topic_id> <key> informed
 ```
 
 This updates `index.active_topic_id` and the target topic's `active`.
@@ -292,7 +294,7 @@ Do not include detailed context from sibling paths.
 
 Never auto-stash, revert, commit, or otherwise change git state. If code changes are recorded, warn and provide a checklist only.
 
-### `mark close <key>`
+### `close <key>`
 
 Close a path after confirmation. Require one of:
 
@@ -318,24 +320,24 @@ After confirmation:
 - Set top-level `closed_as`, `closed_reason`, and `closed_at`.
 - If the closed path was the active path, set `topic.active` to `null`.
 
-Use `mark resume` to activate another path after closing.
+Use the resume subcommand to activate another path after closing.
 
-### `mark rename <title>`
+### `rename <title>`
 
 Rename only the active topic. Confirm before writing. Do not rename path keys or path titles in v1.
 
-### `mark map`
+### `map [text]`
 
 Output Mermaid mindmap for the active topic by default. Build the tree from `paths[].parent`.
 
 ```text
-mark map
+map
 ```
 
 Use Mermaid `mindmap` only. Show each path as `key title [status]`; for closed paths show `[closed: closed_as]`. Do not show full updates.
 
 ```text
-mark map text
+map text
 ```
 
 Output a plain text tree only, using the same fields.
@@ -347,20 +349,20 @@ Any operation that writes or changes state must first show a draft and wait for 
 Write operations include:
 
 ```text
-mark
-mark pending
-mark update
-mark resume
-mark close
-mark rename
+no subcommand
+pending
+update
+resume
+close
+rename
 ```
 
 Read-only operations do not require confirmation:
 
 ```text
-mark list
-mark show
-mark map
+list
+show
+map
 ```
 
 ## Non-Goals
