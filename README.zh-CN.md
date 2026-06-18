@@ -93,6 +93,7 @@ Claude Code 命令：
 /trailmap show [key]
 /trailmap update <key>
 /trailmap resume <key> clean|informed
+/trailmap resume <topic_id> <key> clean|informed
 /trailmap close <key> done|blocked|discarded
 /trailmap rename <topic title>
 /trailmap map [text]
@@ -107,6 +108,7 @@ $trailmap list
 $trailmap show [key]
 $trailmap update <key>
 $trailmap resume <key> clean|informed
+$trailmap resume <topic_id> <key> clean|informed
 $trailmap close <key> done|blocked|discarded
 $trailmap rename <topic title>
 $trailmap map [text]
@@ -172,6 +174,8 @@ discarded  跑偏、无效或不再考虑
 如果路径重新打开，顶层的 `closed_as/closed_reason/closed_at` 会移除，关闭历史保留在 `updates` 里。
 
 ## 常用命令
+
+以下详细示例使用 Codex 语法；Claude Code 用户可将 `$trailmap` 替换为 `/trailmap`。
 
 ### 创建分叉或子路径
 

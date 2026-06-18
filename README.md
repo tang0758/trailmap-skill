@@ -69,6 +69,7 @@ Claude Code commands:
 /trailmap show [key]
 /trailmap update <key>
 /trailmap resume <key> clean|informed
+/trailmap resume <topic_id> <key> clean|informed
 /trailmap close <key> done|blocked|discarded
 /trailmap rename <topic title>
 /trailmap map [text]
@@ -83,6 +84,7 @@ $trailmap list
 $trailmap show [key]
 $trailmap update <key>
 $trailmap resume <key> clean|informed
+$trailmap resume <topic_id> <key> clean|informed
 $trailmap close <key> done|blocked|discarded
 $trailmap rename <topic title>
 $trailmap map [text]
