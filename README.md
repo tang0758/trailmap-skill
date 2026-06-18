@@ -60,21 +60,32 @@ Invoke the skill explicitly in Claude Code:
 /trailmap
 ```
 
-Core commands:
+Claude Code commands:
 
 ```text
-mark
-mark pending <idea>
-mark list
-mark show
-mark show <key>
-mark update <key>
-mark resume <key> clean
-mark resume <key> informed
-mark close <key>
-mark rename <topic title>
-mark map
-mark map text
+/trailmap
+/trailmap pending <idea>
+/trailmap list
+/trailmap show [key]
+/trailmap update <key>
+/trailmap resume <key> clean|informed
+/trailmap close <key> done|blocked|discarded
+/trailmap rename <topic title>
+/trailmap map [text]
+```
+
+Codex commands:
+
+```text
+$trailmap
+$trailmap pending <idea>
+$trailmap list
+$trailmap show [key]
+$trailmap update <key>
+$trailmap resume <key> clean|informed
+$trailmap close <key> done|blocked|discarded
+$trailmap rename <topic title>
+$trailmap map [text]
 ```
 
 Model basics:
@@ -83,10 +94,10 @@ Model basics:
 - Each path has a unique `key`, optional `parent`, `status`, `created_from`, `goal`, `hypothesis`, and `updates`.
 - Path statuses are `active`, `pending`, `paused`, and `closed`.
 - Closed paths use `closed_as`: `done`, `blocked`, or `discarded`.
-- `mark` creates child paths under the current active path.
-- `mark pending <idea>` adds a sibling pending path without changing the active path.
+- The base Trailmap command creates child paths under the current active path.
+- The `pending` subcommand adds a sibling pending path without changing the active path.
 
-Use `mark pending <idea>` when you want to remember another possible path beside the current active path without switching away from the current work.
+Use the `pending` subcommand when you want to remember another possible path beside the current active path without switching away from the current work.
 
 Trailmap stores workspace-local branch records under:
 
