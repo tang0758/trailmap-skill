@@ -138,6 +138,14 @@ Rules:
 - After confirmation, append the update and sync the path's top-level status.
 - Use `codechange.changed/files/summary`; do not use `codechange.note`.
 
+## Confirmation Draft Presentation
+
+Build the complete structured draft internally, but show a concise human confirmation view by default.
+
+Show only identifiers and titles, decision-relevant goals/hypotheses/summaries/conclusions, resulting statuses or transitions, necessary default-choice explanations, relevant warnings, and one explicit confirmation question at the end.
+
+Hide `source`, `created_from`, `parent`, timestamps, repeated status-change lists, and the complete persistence structure unless a key/parent relationship is ambiguous, a closed path is reopened, code changes may contaminate a clean resume, or the user asks to expand details. Hidden fields remain in the internal draft and are written normally after confirmation.
+
 ## Commands
 
 Arguments after explicit skill invocation are direct subcommands. Claude Code uses `/trailmap <subcommand>`; Codex uses `$trailmap <subcommand>`. No arguments creates a branch.
@@ -168,7 +176,7 @@ Path key rules:
 - Check uniqueness within the topic.
 - Never overwrite an existing key.
 
-Before writing, show a confirmation draft containing topic, current active path if any, leave-summary if any, new paths, selected active path, and status changes.
+Before writing, show the topic `id` and title; each new path's key, status, title, goal, and hypothesis; any decision-relevant leave summary; and a short explanation of the default active-path selection.
 
 ### `pending <idea>`
 
@@ -194,7 +202,7 @@ pending 检查网络重试，先不要切走
 pending 服务端限流，继续当前 A
 ```
 
-Before writing, show a confirmation draft containing the current active path, the new pending path key/title/goal/hypothesis, its `parent`, and the unchanged `topic.active`.
+Before writing, show the new pending path's key, title, goal, and hypothesis, plus one sentence confirming that the current active path remains unchanged.
 
 ### `list`
 
@@ -252,6 +260,8 @@ codechange.summary
 
 Use git/workspace context to infer changed files when possible, but do not require it. After confirmation, append the update to `updates` and set the path status to `status_after`.
 
+Before writing, show the path key, summary, conclusion, and `status_after`. Show changed files and the code-change summary only when code changed.
+
 If `status_after` is `closed`, set top-level `closed_as`, `closed_reason`, and `closed_at`. If `status_after` is not `closed`, ensure top-level closure fields are absent.
 
 ### `resume <key> clean|informed`
@@ -266,6 +276,8 @@ Before switching:
 4. Include codechange summary and warnings.
 5. Ask for confirmation.
 6. After confirmation, write the leave-summary, set old path status, set target path `active`, and set `topic.active` to the target key.
+
+The confirmation view shows the current path's leave summary, the target path, the selected `clean` or `informed` mode, and the resulting status transition. Preserve relevant code-change warnings, especially when workspace changes may contaminate a `clean` resume.
 
 If target path is `closed`, warn that it is closed and ask for explicit reopen confirmation. If confirmed, append a reopen update, set the target path to `active`, and remove top-level closure fields.
 
@@ -307,6 +319,7 @@ discarded
 Draft and confirm:
 
 ```text
+key
 closed_as
 closed_reason
 final summary
@@ -324,7 +337,7 @@ Use the resume subcommand to activate another path after closing.
 
 ### `rename <title>`
 
-Rename only the active topic. Confirm before writing. Do not rename path keys or path titles in v1.
+Rename only the active topic. Before writing, show the old topic title and proposed new title. Confirm before writing. Do not rename path keys or path titles in v1.
 
 ### `map [text]`
 
@@ -344,7 +357,7 @@ Output a plain text tree only, using the same fields.
 
 ## Confirmation Rule
 
-Any operation that writes or changes state must first show a draft and wait for explicit user confirmation.
+Any operation that writes or changes state must first show a draft and wait for explicit user confirmation. Every write draft must end with one explicit confirmation question, such as `Confirm writing the above changes?`. Do not write any state before the user explicitly confirms.
 
 Write operations include:
 
