@@ -260,7 +260,7 @@ codechange.summary
 
 Use git/workspace context to infer changed files when possible, but do not require it. After confirmation, append the update to `updates` and set the path status to `status_after`.
 
-Before writing, show the path key, summary, conclusion, and `status_after`. If `status_after` is `closed`, also show `closed_as` and `closed_reason`. Show changed files and the code-change summary only when code changed.
+Before writing, show the path key, summary, conclusion, and `status_after`. If `status_after` is `closed`, also show `closed_as`. Show changed files and the code-change summary only when code changed.
 
 If `status_after` is `closed`, set top-level `closed_as`, `closed_reason`, and `closed_at`. If `status_after` is not `closed`, ensure top-level closure fields are absent.
 
