@@ -304,7 +304,18 @@ Trailmap stores a flat `paths` list with parent references:
 }
 ```
 
-Path status is one of `active`, `pending`, `paused`, or `closed`. A closed path additionally requires `closed_as: done|blocked|discarded`. Path updates use:
+Path status is one of `active`, `pending`, `paused`, or `closed`. A closed path additionally requires `closed_as: done|blocked|discarded`.
+
+Model invariants:
+
+- `topic.active` is either `null` or the key of the current active path.
+- When `topic.active` is not `null`, exactly one path has `status: active` and the same key.
+- When every path is closed, `topic.active` is `null`.
+- Topic open/closed state is derived from its paths; it is not stored as `topic.status`.
+- `source` is optional, human-readable context and must not depend on a platform conversation ID.
+- `closed_as`, `closed_reason`, and `closed_at` exist only on closed paths. Reopening removes these top-level fields while preserving closure history in `updates`.
+
+Path updates use:
 
 ```json
 {

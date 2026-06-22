@@ -304,7 +304,18 @@ Trailmap 使用带 parent 引用的扁平 `paths` 列表：
 }
 ```
 
-路径状态只能是 `active`、`pending`、`paused` 或 `closed`。closed 路径还必须具有 `closed_as: done|blocked|discarded`。路径 update 使用：
+路径状态只能是 `active`、`pending`、`paused` 或 `closed`。closed 路径还必须具有 `closed_as: done|blocked|discarded`。
+
+模型不变量：
+
+- `topic.active` 只能是 `null` 或当前 active path 的 key。
+- `topic.active` 不为 `null` 时，必须恰好有一条路径的 `status` 是 `active`，并且 key 与它一致。
+- 所有路径都 closed 时，`topic.active` 必须是 `null`。
+- 主题是否 open 由路径状态推导，不保存 `topic.status`。
+- `source` 是可选的人类可读上下文，不能依赖平台 conversation ID。
+- `closed_as`、`closed_reason` 和 `closed_at` 只存在于 closed 路径。重开路径时移除这些顶层字段，但关闭历史保留在 `updates` 中。
+
+路径 update 使用：
 
 ```json
 {
