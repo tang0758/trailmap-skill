@@ -114,6 +114,10 @@ $trailmap rename <topic title>
 $trailmap map [text]
 ```
 
+## 确认草案
+
+写操作默认只展示与决策有关的简洁确认草案。Trailmap 仍在内部保留完整结构，并且只在明确确认后落盘；需要检查内部字段时可以要求展开详情。
+
 ## 数据模型
 
 Trailmap 使用简化模型：
