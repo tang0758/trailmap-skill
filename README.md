@@ -94,7 +94,7 @@ $trailmap map [text]
 
 Write operations show a concise confirmation draft with only decision-relevant fields. Trailmap still keeps the complete structured draft internally and writes it only after explicit confirmation. Ask to expand details when you need to inspect internal fields.
 
-Model basics:
+## Model basics
 
 - A topic stores a flat `paths` list.
 - Each path has a unique `key`, optional `parent`, `status`, `created_from`, `goal`, `hypothesis`, and `updates`.
