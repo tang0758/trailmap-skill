@@ -141,6 +141,35 @@ Rules:
 - Do not mark a subagent path as a second `active` path. The topic still has at most one main active path.
 - In human views, append compact execution state such as `[pending, subagent running]`.
 
+Worktree execution fields:
+
+```json
+{
+  "worktree": {
+    "enabled": true,
+    "status": "ready",
+    "path": ".worktrees/trailmap/login-timeout/B",
+    "branch": "trailmap/login-timeout/B",
+    "base_ref": "HEAD",
+    "base_sha": "abc123",
+    "base_dirty": true,
+    "changed_files": [],
+    "diff_summary": ""
+  }
+}
+```
+
+Rules:
+
+- `agent_run.worktree` is present only for `--worktree` runs.
+- `agent_run.worktree.status` may be `creating`, `ready`, `failed`, `retained`, or `removed`.
+- `base_ref` defaults to `HEAD`; `--base <ref>` overrides it.
+- `base_sha` stores the resolved base commit.
+- `base_dirty` records whether the main workspace had uncommitted changes at worktree creation time.
+- `changed_files` and `diff_summary` summarize worktree changes relative to `base_sha`.
+- Do not store worktree metadata in `codechange`; copy only path-level summaries into update `codechange`.
+- Do not start a new subagent run for a path while `agent_run.status` is `running` or `reported`.
+
 Path update:
 
 ```json
