@@ -53,6 +53,7 @@ $trailmap resume B clean
 - **不中断当前工作。** 在 active 路径旁边原地新增 sibling pending 路径，当前 active 完全不变。
 - **形成决策树。** 当前方向再次分叉时，在它下面创建 child paths。
 - **并行探索备选路径。** 为 pending 路径启动 subagent 探索，同时保持主会话 active path 不变。
+- **隔离高风险 subagent 改动。** 使用 `--worktree` 让 subagent path 在独立 Git worktree 中运行。
 - **记录路径结果。** 保存摘要、结论、状态和代码改动提醒。
 - **有边界地回溯。** 用 `clean` 限制其他路径影响，或用 `informed` 带入相关路径结论。
 - **看清探索全貌。** 查看跨主题列表，或把当前主题输出为 Mermaid `graph LR` 和文本树。
@@ -144,6 +145,8 @@ $trailmap list                         查看 workspace 中所有主题和路径
 $trailmap show [key]                   查看活跃主题或某条路径
 $trailmap update <key>                 记录路径进展和结果
 $trailmap subagent <key>               为已有路径启动 subagent 探索
+$trailmap subagent <key> --worktree    在独立 worktree 中启动 subagent 探索
+$trailmap subagent <key> --worktree --base <ref>
 $trailmap ... --subagent B --allow-shared-code
 $trailmap resume <key> clean|informed  切换当前工作路径
 $trailmap close <key> done|blocked|discarded
@@ -171,6 +174,8 @@ Trailmap 在 workspace 中保存记录：
 `resume clean` 只控制对话上下文。工作区里已经存在的代码仍然可能影响回溯后的路径。
 
 subagent 探索可能和主会话 active path 在同一个共享工作区中运行。Trailmap 会提示共享代码风险，但不会隔离文件或管理 Git 状态。
+
+worktree 模式会在确认后创建本地 branch 和 worktree。Trailmap 只记录 path 和 branch，不会自动 merge、commit、清理或应用 worktree 改动。retained worktree 中的改动会保留在该 worktree 内，直到你自行检查或集成。
 
 ## 当前限制
 

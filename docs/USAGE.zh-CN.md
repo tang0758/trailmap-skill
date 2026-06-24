@@ -53,6 +53,8 @@ $trailmap list
 $trailmap show [key]
 $trailmap update <key>
 $trailmap subagent <key>
+$trailmap subagent <key> --worktree
+$trailmap subagent <key> --worktree --base <ref>
 $trailmap resume <key> clean|informed
 $trailmap resume <topic_id> <key> clean|informed
 $trailmap close <key> done|blocked|discarded
@@ -85,6 +87,7 @@ B  网络重试  [pending]
 
 ```text
 $trailmap 登录失败可能来自 token 或网络，先查 token --subagent B --allow-shared-code
+$trailmap 登录失败可能来自 token、网络或缓存，先查 token --subagent B,C --worktree
 ```
 
 ### 新增子方向路径
@@ -183,6 +186,8 @@ closed
 
 active、pending 和 paused 路径显示 key、标题以及必要的代码改动提醒。带 subagent 状态的路径会追加紧凑执行状态，例如 `[pending, subagent running]`。closed 路径还会显示 `closed_as` 和 `closed_reason`，但不会展开完整 updates。
 
+对于 worktree subagent run，`list` 只显示紧凑 worktree 状态，例如 `[pending, subagent running, worktree]`。
+
 ### 查看主题或路径详情
 
 ```text
@@ -196,6 +201,8 @@ $trailmap show B
 ```
 
 `show [key]` 只在活跃主题内查找并展示一条路径，包括它的 `created_from`、路径说明、完整 updates、代码改动详情、最近一次 `agent_run` 字段、可用的 subagent handoff/report 摘要和关闭字段。
+
+对于 worktree subagent run，`show <key>` 还会展开 worktree path、worktree branch、base ref、base sha、创建 worktree 时主工作区是否 dirty、changed files 和 diff summary。
 
 v1 不支持 `show <topic_id>`。可以用 `list` 查找主题，再通过跨主题 `resume` 激活目标路径。
 
@@ -228,6 +235,9 @@ codechange.summary
 $trailmap subagent <key>
 $trailmap subagent B
 $trailmap subagent B --informed --allow-shared-code
+$trailmap subagent B --worktree
+$trailmap subagent B --worktree --informed
+$trailmap subagent B --worktree --base origin/main
 ```
 
 `subagent <key>` 为活跃主题中的已有路径启动 subagent 探索。目标路径必须存在，不能是当前主会话 active path，不能是 closed，且不能已经有 `agent_run.status: running`。
@@ -242,6 +252,60 @@ B  网络重试  [pending, subagent running]
 
 如果当前运行环境没有可用的 subagent 工具，Trailmap 不应让路径操作失败。确认后记录 `agent_run.status: blocked` 和简短原因。
 
+### 在 worktree 中运行 subagent
+
+worktree 是显式 opt-in。某条 subagent path 可能修改代码、且你希望它不要影响主会话 active path 时，使用 `--worktree`：
+
+```text
+$trailmap subagent B --worktree
+$trailmap subagent B --worktree --informed
+$trailmap subagent B --worktree --base origin/main
+```
+
+`--worktree` 和 `--allow-shared-code` 互斥。接受文件级相互影响风险时使用共享工作区；希望使用独立本地 Git worktree 时使用 `--worktree`。
+
+base 默认是 `HEAD`。`--base <ref>` 可以覆盖它。如果 `--base <ref>` 无法解析，Trailmap 会阻塞这次 subagent run，不会 fallback 到 `HEAD`。
+
+默认 worktree 位置为：
+
+```text
+.worktrees/trailmap/<topic-id>/<path-key>/
+trailmap/<topic-id>/<path-key>   # branch
+```
+
+如果目录非空或 branch 已存在，Trailmap 会为 worktree path 和 worktree branch 追加相同的唯一后缀。不会复用已有非空目录或已有 branch。
+
+主工作区未提交改动不会复制到 worktree。创建 worktree 时如果主工作区有未提交改动，Trailmap 记录 `base_dirty: true`。
+
+### worktree 确认草案与安全边界
+
+创建 worktree 前，Trailmap 会展示确认草案，包括 path、context mode、base ref 和 sha、将创建的 branch、worktree path、主工作区是否有未提交改动、是否会更新 `.gitignore`，以及安全提示。
+
+创建项目内 worktree 前，`.worktrees/` 必须被忽略。如果尚未忽略，Trailmap 可以在确认后只向 `.gitignore` 追加这一行：
+
+```text
+.worktrees/
+```
+
+Trailmap 不会自动 merge、commit、清理或应用 worktree 改动，也不会 stash、revert、复制文件或切换主工作区 branch。
+
+### worktree 结果
+
+worktree run 的 subagent report 还需要包含：
+
+```text
+worktree.path
+worktree.branch
+worktree.base_ref
+worktree.base_sha
+worktree.changed_files
+worktree.diff_summary
+```
+
+Trailmap 从 worktree 相对 `agent_run.worktree.base_sha` 的 diff 中推导 `codechange.files`，而不是从主工作区推导。如果 diff 无法读取，则记录 `changed: true`、空文件列表，并写入 `Worktree diff unavailable; inspect worktree manually.`
+
+worktree subagent 返回后，Trailmap 默认保留它作为 retained worktree，并记录 `agent_run.worktree.status: retained`。第一个 worktree 版本不会自动删除 worktrees。
+
 ### 为新建路径启动 subagent 探索
 
 subagent 启动也可以附着到新建的非主 active 路径：
@@ -250,6 +314,8 @@ subagent 启动也可以附着到新建的非主 active 路径：
 $trailmap pending 网络重试可能是主因 --subagent --allow-shared-code
 $trailmap 登录失败可能来自 token 或网络，先查 token --subagent B --allow-shared-code
 $trailmap 登录失败可能来自 token、网络或缓存，先查 token --subagent B,C --allow-shared-code
+$trailmap pending 网络重试可能是主因 --subagent --worktree
+$trailmap 登录失败可能来自 token、网络或缓存，先查 token --subagent B,C --worktree
 ```
 
 当一个命令创建了非主 active 路径且没有 `--subagent` 标志时，Trailmap 会询问是否为 0 条、1 条或多条候选路径启动 subagent 探索。如果使用了 `--subagent B,C`，则直接选择这些 key。
@@ -303,6 +369,10 @@ $trailmap resume <topic_id> <key> clean|informed
 如果目标路径已经 closed，Trailmap 会警告本次操作将重新打开路径，并要求明确确认。重开后会追加一条 update，并移除顶层 `closed_as`、`closed_reason` 和 `closed_at`；历史关闭记录仍保留在 `updates` 中。
 
 如果目标路径正在被 subagent 探索，Trailmap 会提示在主会话 resume 这条路径可能造成重复工作或上下文混合。这个提示不会阻止 resume。
+
+### resume 带 retained worktree 改动的路径
+
+如果目标路径有 retained worktree，并且存在 changed files 或 diff summary，Trailmap 会提示这些代码改动尚未合并到当前工作区。`resume clean` 可以包含目标路径自己的 worktree artifact summary，但不会应用这些改动，也不会带入未经确认的完整 handoff reasoning。
 
 #### clean
 
@@ -363,6 +433,8 @@ graph LR
 ```
 
 `map` 默认输出当前主题的 Mermaid `graph LR`。它根据 `paths[].parent` 推导图，展示 key、标题、状态、closed 路径的 `closed_as`，以及可用的紧凑 subagent 状态，不展示完整 updates。
+
+对于 worktree subagent run，`map` 只显示紧凑 worktree 状态，例如 `pending / subagent running / worktree`。
 
 ```text
 $trailmap map text
