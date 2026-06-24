@@ -90,6 +90,8 @@ discarded  disproved, unhelpful, or intentionally abandoned
 
 ## Install
 
+Current stable release: `v0.1.0`.
+
 ### Codex
 
 Ask Codex:
@@ -106,6 +108,14 @@ python "$env:USERPROFILE\.codex\skills\.system\skill-installer\scripts\install-s
 
 Invoke it with `$trailmap`.
 
+To install a fixed release manually for Codex:
+
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.codex\skills" | Out-Null
+git clone --branch v0.1.0 --depth 1 https://github.com/tang0758/trailmap-skill.git "$env:TEMP\trailmap-skill"
+Copy-Item -Recurse -Force "$env:TEMP\trailmap-skill\trailmap" "$env:USERPROFILE\.codex\skills\trailmap"
+```
+
 ### Claude Code
 
 Install as a personal skill:
@@ -115,6 +125,8 @@ mkdir -p ~/.claude/skills
 git clone https://github.com/tang0758/trailmap-skill.git /tmp/trailmap-skill
 cp -R /tmp/trailmap-skill/trailmap ~/.claude/skills/trailmap
 ```
+
+For a fixed release, add `--branch v0.1.0 --depth 1` to the `git clone` command.
 
 For a project-only installation, copy the same `trailmap/` directory to `.claude/skills/trailmap`. Invoke it with `/trailmap`.
 

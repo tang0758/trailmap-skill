@@ -90,6 +90,8 @@ discarded  已排除、无效或决定放弃
 
 ## 安装
 
+当前稳定版本：`v0.1.0`。
+
 ### Codex
 
 直接告诉 Codex：
@@ -106,6 +108,14 @@ python "$env:USERPROFILE\.codex\skills\.system\skill-installer\scripts\install-s
 
 安装后通过 `$trailmap` 调用。
 
+如果需要为 Codex 固定安装某个发布版本，可以手动 clone tag：
+
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.codex\skills" | Out-Null
+git clone --branch v0.1.0 --depth 1 https://github.com/tang0758/trailmap-skill.git "$env:TEMP\trailmap-skill"
+Copy-Item -Recurse -Force "$env:TEMP\trailmap-skill\trailmap" "$env:USERPROFILE\.codex\skills\trailmap"
+```
+
 ### Claude Code
 
 安装为个人 Skill：
@@ -115,6 +125,8 @@ mkdir -p ~/.claude/skills
 git clone https://github.com/tang0758/trailmap-skill.git /tmp/trailmap-skill
 cp -R /tmp/trailmap-skill/trailmap ~/.claude/skills/trailmap
 ```
+
+如果需要固定发布版本，在 `git clone` 命令中增加 `--branch v0.1.0 --depth 1`。
 
 如果只希望在当前项目使用，将仓库中的 `trailmap/` 目录复制到 `.claude/skills/trailmap`。安装后通过 `/trailmap` 调用。
 
