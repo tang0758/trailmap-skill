@@ -213,6 +213,11 @@ Subagent flags:
 - `--subagent <key>` or `--subagent <key1,key2>` selects specific newly created path keys for subagent exploration.
 - `--allow-shared-code` means the user accepts the shared workspace code risk. It skips the separate risk prompt, not the Trailmap write-confirmation draft.
 - `--informed` uses informed context for subagent exploration. Without it, subagent context is `clean`.
+- `--worktree` requests isolated Git worktree execution for selected subagent paths.
+- `--base <ref>` sets the Git ref used to create the worktree; default is current `HEAD`.
+- `--worktree` and `--allow-shared-code` are mutually exclusive.
+- `--worktree` may be combined with `--informed`.
+- Do not support `--no-worktree`; shared workspace is already the default.
 
 ### No subcommand
 
@@ -343,10 +348,33 @@ Validation:
 - Reject the current main active path.
 - Reject closed paths.
 - Reject paths whose `agent_run.status` is already `running`.
+- Reject commands that combine `--worktree` and `--allow-shared-code`.
 
 Before writing, show a concise startup draft with the path key/title/status, context mode, planned `agent_run.status`, and shared workspace code risk. `--allow-shared-code` skips only the separate risk question; it does not skip the write-confirmation draft.
 
 If the subagent tool is unavailable, do not fail the path operation. Write `agent_run.status: "blocked"` with a concise reason after confirmation.
+
+For `--worktree`:
+
+- Resolve `--base <ref>` or current `HEAD` before creating the worktree.
+- If the base ref does not resolve, write `agent_run.status: "blocked"` and `agent_run.worktree.status: "failed"` after confirmation; do not fall back to `HEAD`.
+- Create one worktree and one branch per selected path.
+- Do not copy uncommitted main-workspace changes into the worktree.
+- Record `base_dirty: true` when the main workspace has uncommitted changes.
+
+Default worktree path:
+
+```text
+.worktrees/trailmap/<topic-id>/<path-key>/
+```
+
+Default branch:
+
+```text
+trailmap/<topic-id>/<path-key>
+```
+
+If the directory exists and is non-empty, or the branch already exists, append the same unique suffix to both. Do not reuse non-empty directories or existing branches.
 
 ### `resume <key> clean|informed`
 
