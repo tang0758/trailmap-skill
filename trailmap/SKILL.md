@@ -201,6 +201,36 @@ Show only identifiers and titles, decision-relevant goals/hypotheses/summaries/c
 
 Hide `source`, `created_from`, `parent`, timestamps, repeated status-change lists, and the complete persistence structure unless a key/parent relationship is ambiguous, a closed path is reopened, code changes may contaminate a clean resume, or the user asks to expand details. Hidden fields remain in the internal draft and are written normally after confirmation.
 
+### Worktree Confirmation Drafts
+
+Before creating a worktree, show:
+
+```text
+path
+context mode
+base ref and base sha
+branch to create
+worktree path to create
+whether the main workspace has uncommitted changes
+whether .gitignore will be updated
+that uncommitted changes will not be copied
+that Trailmap will not merge, commit, stash, revert, apply, or copy code automatically
+```
+
+Do not create the branch or worktree before explicit confirmation.
+
+`.worktrees/` must be ignored before creating project-local worktrees. If `.worktrees/` is not ignored, include this exact change in the confirmation draft:
+
+```text
++ .worktrees/
+```
+
+After confirmation, Trailmap may create `.gitignore` if missing or append only `.worktrees/` if present. Do not reorder or reformat `.gitignore`.
+
+Trailmap does not automatically merge, cherry-pick, apply patches, copy files, commit, stash, revert, or switch the main workspace branch.
+
+When a worktree subagent reports, keep the worktree by default. Set `agent_run.worktree.status` to `retained`. The first worktree version does not implement a cleanup command and does not remove worktrees automatically.
+
 ## Commands
 
 Arguments after explicit skill invocation are direct subcommands. Claude Code uses `/trailmap <subcommand>`; Codex uses `$trailmap <subcommand>`. No arguments creates a branch.
