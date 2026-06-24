@@ -52,6 +52,7 @@ $trailmap pending <idea>
 $trailmap list
 $trailmap show [key]
 $trailmap update <key>
+$trailmap subagent <key>
 $trailmap resume <key> clean|informed
 $trailmap resume <topic_id> <key> clean|informed
 $trailmap close <key> done|blocked|discarded
@@ -79,6 +80,12 @@ B  网络重试  [pending]
 默认由 AI 生成简短且唯一的 key，根路径通常使用 `A/B/C`，child paths 通常使用 `A1/A2`。也可以明确指定 `P1/P2` 等 key；Trailmap 会查重，不会覆盖已有路径。
 
 如果当前没有活跃主题，Trailmap 会草拟新主题和根路径。根路径使用 `parent: null`；其中一条成为 `active`，其他路径成为 `pending`。
+
+如果希望为新建的非 active 路径启动 subagent 探索，可以追加 `--subagent`：
+
+```text
+$trailmap 登录失败可能来自 token 或网络，先查 token --subagent B --allow-shared-code
+```
 
 ### 新增子方向路径
 
@@ -151,6 +158,14 @@ B  网络重试            [pending]
 >
 > 如果表达的是“当前路径内部出现子分叉”，应使用基础命令，而不是 `pending`。
 
+也可以为新建的 sibling pending 路径启动 subagent 探索：
+
+```text
+$trailmap pending 网络重试可能是主因 --subagent --allow-shared-code
+```
+
+新路径仍然是 `pending`；subagent 进展单独记录在 `agent_run`。
+
 ### 查看所有主题
 
 ```text
@@ -166,7 +181,7 @@ paused
 closed
 ```
 
-active、pending 和 paused 路径显示 key、标题以及必要的代码改动提醒。closed 路径还会显示 `closed_as` 和 `closed_reason`，但不会展开完整 updates。
+active、pending 和 paused 路径显示 key、标题以及必要的代码改动提醒。带 subagent 状态的路径会追加紧凑执行状态，例如 `[pending, subagent running]`。closed 路径还会显示 `closed_as` 和 `closed_reason`，但不会展开完整 updates。
 
 ### 查看主题或路径详情
 
@@ -180,7 +195,7 @@ $trailmap show
 $trailmap show B
 ```
 
-`show [key]` 只在活跃主题内查找并展示一条路径，包括它的 `created_from`、路径说明、完整 updates、代码改动详情和关闭字段。
+`show [key]` 只在活跃主题内查找并展示一条路径，包括它的 `created_from`、路径说明、完整 updates、代码改动详情、最近一次 `agent_run` 字段、可用的 subagent handoff/report 摘要和关闭字段。
 
 v1 不支持 `show <topic_id>`。可以用 `list` 查找主题，再通过跨主题 `resume` 激活目标路径。
 
@@ -207,6 +222,68 @@ codechange.summary
 
 当 `status_after` 是 `closed` 时，Trailmap 同时记录关闭字段；路径不是 closed 时，顶层关闭字段必须不存在。
 
+### 为已有路径启动 subagent 探索
+
+```text
+$trailmap subagent <key>
+$trailmap subagent B
+$trailmap subagent B --informed --allow-shared-code
+```
+
+`subagent <key>` 为活跃主题中的已有路径启动 subagent 探索。目标路径必须存在，不能是当前主会话 active path，不能是 closed，且不能已经有 `agent_run.status: running`。
+
+Trailmap 会保持主会话 active path 不变。目标路径保留自己的生命周期状态，通常是 `pending` 或 `paused`，同时获得执行层状态：
+
+```text
+B  网络重试  [pending, subagent running]
+```
+
+默认情况下，Trailmap 会在启动 subagent 前提示共享工作区风险。这个提示的原因是 subagent 和主会话 active path 可能同时修改同一批文件。`--allow-shared-code` 表示接受这个风险，并跳过共享代码风险的二次提示，但它不跳过 Trailmap 写入确认。
+
+如果当前运行环境没有可用的 subagent 工具，Trailmap 不应让路径操作失败。确认后记录 `agent_run.status: blocked` 和简短原因。
+
+### 为新建路径启动 subagent 探索
+
+subagent 启动也可以附着到新建的非主 active 路径：
+
+```text
+$trailmap pending 网络重试可能是主因 --subagent --allow-shared-code
+$trailmap 登录失败可能来自 token 或网络，先查 token --subagent B --allow-shared-code
+$trailmap 登录失败可能来自 token、网络或缓存，先查 token --subagent B,C --allow-shared-code
+```
+
+当一个命令创建了非主 active 路径且没有 `--subagent` 标志时，Trailmap 会询问是否为 0 条、1 条或多条候选路径启动 subagent 探索。如果使用了 `--subagent B,C`，则直接选择这些 key。
+
+`--allow-shared-code` 是风险接受参数，不是写入确认绕过参数。Trailmap 仍然会展示新路径和 `agent_run` 草案，并等待明确确认后才写入状态。
+
+### subagent 上下文模式
+
+subagent 上下文默认使用 `clean`。clean 上下文包含主题标题、目标路径的 `created_from`、目标路径说明、目标路径 updates、当前 active path 的最小身份信息、共享工作区风险和固定报告格式。它不包含 sibling paths 的详细推理过程。
+
+当希望 subagent 参考 sibling、parent、当前 active 或此前已探索路径的摘要结论时，使用 `--informed`。Trailmap 会把这些内容标记为“其他路径上下文”。
+
+### subagent 报告
+
+subagent 返回固定报告：
+
+```text
+path_key
+summary
+conclusion
+status_after
+closed_as, only when status_after=closed
+codechange.changed
+codechange.files
+codechange.summary
+handoff
+```
+
+subagent 返回后，Trailmap 会把这次 run 记录或展示为 `reported`，并把报告转换成正常的 `update <key>` 草案。必须由你确认后，Trailmap 才会写入 update、改变路径状态、写入关闭字段，或将 `agent_run.status` 标记为 `completed`。
+
+如果你拒绝 update 草案，Trailmap 不写入 update，不处理代码，并保持 `agent_run.status` 为 `reported`。
+
+subagent 可以建议 `status_after: closed` 和 `closed_as`，但不能直接关闭路径。
+
 ### 使用 clean 或 informed 回溯路径
 
 在当前主题内切换路径：
@@ -224,6 +301,8 @@ $trailmap resume <topic_id> <key> clean|informed
 切换前，Trailmap 会为当前活跃路径草拟离开摘要，并默认将它改为 `paused`。确认草案会显示目标路径、所选模式、状态变化和代码改动警告。明确确认后，目标路径变为 `active`，`topic.active` 更新为目标 key；跨主题 resume 还会更新 `index.active_topic_id`。
 
 如果目标路径已经 closed，Trailmap 会警告本次操作将重新打开路径，并要求明确确认。重开后会追加一条 update，并移除顶层 `closed_as`、`closed_reason` 和 `closed_at`；历史关闭记录仍保留在 `updates` 中。
+
+如果目标路径正在被 subagent 探索，Trailmap 会提示在主会话 resume 这条路径可能造成重复工作或上下文混合。这个提示不会阻止 resume。
 
 #### clean
 
@@ -283,7 +362,7 @@ graph LR
   A --> A1["A1 检查刷新竞态 paused"] & A2["A2 检查 token 缓存问题 pending"] & A3["A3 检查系统时间 active"]
 ```
 
-`map` 默认输出当前主题的 Mermaid `graph LR`。它根据 `paths[].parent` 推导图，展示 key、标题、状态和 closed 路径的 `closed_as`，不展示完整 updates。
+`map` 默认输出当前主题的 Mermaid `graph LR`。它根据 `paths[].parent` 推导图，展示 key、标题、状态、closed 路径的 `closed_as`，以及可用的紧凑 subagent 状态，不展示完整 updates。
 
 ```text
 $trailmap map text
@@ -402,7 +481,7 @@ Trailmap 使用带 parent 引用的扁平 `paths` 列表：
 
 ## 代码改动与 Git 安全
 
-Trailmap 只把代码改动记录为提醒和检查清单。它绝不会自动：
+Trailmap 只把代码改动记录为提醒和检查清单。subagent 探索可能和主会话 active path 在同一个共享工作区中运行。Trailmap 会提示共享工作区代码风险，但绝不会自动：
 
 - stash 改动
 - revert 文件
