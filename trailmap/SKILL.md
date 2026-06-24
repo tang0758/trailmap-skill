@@ -359,6 +359,36 @@ Do not include detailed context from sibling paths.
 
 Never auto-stash, revert, commit, or otherwise change git state. If code changes are recorded, warn and provide a checklist only.
 
+### Subagent Context Modes
+
+Subagent context defaults to `clean`.
+
+`clean` includes the topic title, target path `created_from`, target path description, target path updates, minimal current active path identity, shared workspace code risk, and required report schema. It does not include detailed reasoning from sibling paths.
+
+`--informed` adds summarized sibling, parent, current-active, or previously explored path conclusions. Clearly label this material as "other-path context".
+
+### Subagent Reports
+
+Subagents must return:
+
+```text
+path_key
+summary
+conclusion
+status_after
+closed_as, only when status_after=closed
+codechange.changed
+codechange.files
+codechange.summary
+handoff
+```
+
+When a subagent returns, set `agent_run.status` to `reported` and show a normal `update <key>` draft. The user must confirm before writing the update, changing the path status, setting closure fields, or changing `agent_run.status` to `completed`.
+
+If the user rejects the update draft, do not write the update, do not change code, and keep `agent_run.status` as `reported`.
+
+Subagents may recommend `status_after: closed` and `closed_as`, but they may not directly close a path.
+
 ### `close <key>`
 
 Close a path after confirmation. Require one of:
