@@ -54,7 +54,7 @@ Nothing is written until you explicitly confirm the proposed change.
 - **Build a tree of decisions.** Create child paths when the current direction splits again.
 - **Record outcomes.** Save summaries, conclusions, status, and code-change reminders for each path.
 - **Resume deliberately.** Choose `clean` context to limit cross-path influence or `informed` context to include conclusions from related paths.
-- **See the whole trail.** List the workspace or export the active topic as Mermaid `mindmap` or a text tree.
+- **See the whole trail.** List the workspace or export the active topic as Mermaid `graph LR` or a text tree.
 
 ## How the model works
 

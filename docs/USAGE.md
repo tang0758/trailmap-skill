@@ -59,6 +59,8 @@ $trailmap rename <topic title>
 $trailmap map [text]
 ```
 
+## Create Paths
+
 ### Create root or child paths
 
 Use the base command with a natural-language description of the branch:
@@ -67,7 +69,18 @@ Use the base command with a natural-language description of the branch:
 $trailmap Login failures may come from token refresh or network retries. Start with token refresh.
 ```
 
+```text
+A  Token refresh investigation  [active]
+B  Network retries              [pending]
+```
+
+Result: Trailmap creates paths A and B. Use `$trailmap map` to view the path tree.
+
+The AI chooses short unique keys by default, commonly `A/B/C` for roots and `A1/A2` for children. You can request explicit keys such as `P1/P2`; Trailmap checks for conflicts and never overwrites an existing key.
+
 If there is no active topic, Trailmap drafts a new topic and root paths. Root paths use `parent: null`; one becomes `active`, and the rest become `pending`.
+
+### Add child paths
 
 If an active topic and Active Path already exist, the base command means that the current path has split into child directions. After confirmation, Trailmap:
 
@@ -87,9 +100,10 @@ $trailmap A may contain a cache bug or a refresh race. Investigate the refresh r
 A  Token refresh investigation  [paused]
 ├─ A1  Refresh race             [active]
 └─ A2  Cache inconsistency      [pending]
+B  Network retries              [pending]
 ```
 
-The AI chooses short unique keys by default, commonly `A/B/C` for roots and `A1/A2` for children. You can request explicit keys such as `P1/P2`; Trailmap checks for conflicts and never overwrites an existing key.
+Result: Trailmap creates A1 and A2 under A.
 
 ### Add a sibling pending path
 
@@ -106,6 +120,36 @@ The new path:
 - does not produce a leave-summary for the current path
 - does not change the current path's status
 - leaves `topic.active` completely unchanged
+
+If the current active path is `A`:
+
+```text
+$trailmap pending System clock skew may be involved; remember it without switching.
+```
+
+```text
+A  Token refresh investigation  [active]
+B  Network retries              [pending]
+C  System clock skew            [pending]
+```
+
+Result: Trailmap creates C, and A remains active.
+
+If the current active path is `A1`:
+
+```text
+$trailmap pending The cache write order may be wrong; remember it without switching.
+```
+
+```text
+A  Token refresh investigation  [paused]
+├─ A1  Refresh race             [active]
+├─ A2  Cache inconsistency      [pending]
+└─ A3  Cache write order        [pending]
+B  Network retries              [pending]
+```
+
+Result: Trailmap creates A3, and A1 remains active. In other words, `pending` always places the new path beside the current active path, not at the topic root.
 
 Use the base command, not `pending`, when the current path itself is splitting into child paths.
 
@@ -233,7 +277,15 @@ This changes only the active topic's title after confirmation. It does not renam
 $trailmap map
 ```
 
-`map` outputs one Mermaid `mindmap` for the active topic. It derives the tree from `paths[].parent` and displays `key`, title, status, and `closed_as` for closed paths. It does not include complete updates.
+Example output:
+
+```mermaid
+graph LR
+  root["Login failure investigation"] --> A["A Token refresh investigation paused"] & B["B Network retries pending"] & C["C Cache write order pending"]
+  A --> A1["A1 Refresh race paused"] & A2["A2 Token cache issue pending"] & A3["A3 System clock skew active"]
+```
+
+`map` outputs one Mermaid `graph LR` for the active topic. It derives the graph from `paths[].parent` and displays `key`, title, status, and `closed_as` for closed paths. It does not include complete updates.
 
 ```text
 $trailmap map text

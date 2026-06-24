@@ -341,13 +341,13 @@ Rename only the active topic. Before writing, show the old topic title and propo
 
 ### `map [text]`
 
-Output Mermaid mindmap for the active topic by default. Build the tree from `paths[].parent`.
+Output a Mermaid `graph LR` for the active topic by default. Build the tree from `paths[].parent`.
 
 ```text
 map
 ```
 
-Use Mermaid `mindmap` only. Show each path as `key title [status]`; for closed paths show `[closed: closed_as]`. Do not show full updates.
+Use Mermaid `graph LR` only. Use `root` for the topic node, and one node per path. Derive Mermaid node ids from path keys; if a key contains characters Mermaid cannot use as an id, replace them with `_`. Node labels must show the original `key`, title, and status; for closed paths show `closed: closed_as`. Do not show full updates.
 
 ```text
 map text
