@@ -178,6 +178,13 @@ Arguments after explicit skill invocation are direct subcommands. Claude Code us
 
 For backward compatibility, ignore one optional leading `mark` before parsing. Accept legacy and natural-language forms, but do not recommend them.
 
+Subagent flags:
+
+- `--subagent` requests subagent exploration for newly created non-main-active paths.
+- `--subagent <key>` or `--subagent <key1,key2>` selects specific newly created path keys for subagent exploration.
+- `--allow-shared-code` means the user accepts the shared workspace code risk. It skips the separate risk prompt, not the Trailmap write-confirmation draft.
+- `--informed` uses informed context for subagent exploration. Without it, subagent context is `clean`.
+
 ### No subcommand
 
 Create a branch.
@@ -204,6 +211,8 @@ Path key rules:
 
 Before writing, show the topic `id` and title; each new path's key, status, title, goal, and hypothesis; any decision-relevant leave summary; and a short explanation of the default active-path selection.
 
+When new non-main-active paths are created, prompt whether to start subagent exploration for zero, one, or multiple candidate paths unless `--subagent` already selects them. Include a shared workspace code risk warning unless `--allow-shared-code` is present. Selected paths keep their normal lifecycle status and receive `agent_run.status: "running"` after confirmation.
+
 ### `pending <idea>`
 
 Add a pending sibling path without switching work context.
@@ -229,6 +238,8 @@ pending 服务端限流，继续当前 A
 ```
 
 Before writing, show the new pending path's key, title, goal, and hypothesis, plus one sentence confirming that the current active path remains unchanged.
+
+For `pending <idea> --subagent`, the new sibling path remains `pending` and receives `agent_run.status: "running"` after confirmation. Include a shared workspace code risk warning unless `--allow-shared-code` is present.
 
 ### `list`
 
@@ -289,6 +300,22 @@ Use git/workspace context to infer changed files when possible, but do not requi
 Before writing, show the path key, summary, conclusion, and `status_after`. If `status_after` is `closed`, also show `closed_as`. Show changed files and the code-change summary only when code changed.
 
 If `status_after` is `closed`, set top-level `closed_as`, `closed_reason`, and `closed_at`. If `status_after` is not `closed`, ensure top-level closure fields are absent.
+
+### `subagent <key>`
+
+Start subagent exploration for an existing path in the active topic.
+
+Validation:
+
+- Require an active topic.
+- Require the target path to exist in the active topic.
+- Reject the current main active path.
+- Reject closed paths.
+- Reject paths whose `agent_run.status` is already `running`.
+
+Before writing, show a concise startup draft with the path key/title/status, context mode, planned `agent_run.status`, and shared workspace code risk. `--allow-shared-code` skips only the separate risk question; it does not skip the write-confirmation draft.
+
+If the subagent tool is unavailable, do not fail the path operation. Write `agent_run.status: "blocked"` with a concise reason after confirmation.
 
 ### `resume <key> clean|informed`
 
