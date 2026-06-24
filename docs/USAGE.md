@@ -289,6 +289,13 @@ graph LR
 
 ```text
 $trailmap map text
+• Login failure investigation
+  ├─ A Token refresh investigation [paused]
+  │  ├─ A1 Refresh race [active]
+  │  ├─ A2 Token cache issue [pending]
+  │  └─ A3 System clock skew [closed: discarded]
+  ├─ B Network retries [pending]
+  └─ C Cache write order [pending]
 ```
 
 `map text` outputs the same information as a plain text tree.

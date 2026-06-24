@@ -287,6 +287,13 @@ graph LR
 
 ```text
 $trailmap map text
+• 登录失败问题排查
+  ├─ A 检查 token 刷新 [paused]
+  │  ├─ A1 检查刷新竞态 [active]
+  │  ├─ A2 检查 token 缓存问题 [pending]
+  │  └─ A3 检查系统时间 [closed: discarded]
+  ├─ B 检查网络重试 [pending]
+  └─ C 检查缓存写入顺序 [pending]
 ```
 
 `map text` 使用纯文本树展示相同信息。
