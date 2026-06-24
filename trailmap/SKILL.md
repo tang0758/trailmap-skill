@@ -324,6 +324,8 @@ For closed paths, show `key`, `title`, `closed_as`, and `closed_reason`. Do not 
 
 For paths with `agent_run`, append compact execution state such as `[pending, subagent running]` or `[paused, subagent reported]`.
 
+For worktree runs, `list` shows compact worktree state only, for example `[pending, subagent running, worktree]`.
+
 ### `show [key]`
 
 Show details for the active topic only.
@@ -343,6 +345,8 @@ show <key>
 ```
 
 Show that path in the active topic, including `created_from`, merged path description, complete `updates`, codechange details, latest `agent_run` fields, subagent handoff/report summary when available, and closure fields if closed.
+
+For worktree runs, `show <key>` expands worktree path, branch, base ref, base sha, base dirty, changed files, and diff summary.
 
 Do not support `show <topic_id>` in v1.
 
@@ -425,6 +429,8 @@ If target path is `closed`, warn that it is closed and ask for explicit reopen c
 
 If the target path has `agent_run.status: "running"`, include a warning that the path is currently being explored by a subagent and resuming it in the main session may duplicate work or mix context. Do not block the resume.
 
+If a resumed path has `agent_run.worktree.status: "retained"` with changed files or diff summary, warn that those code changes are not merged into the current workspace and `resume clean` will not apply them.
+
 For cross-topic resume, support:
 
 ```text
@@ -458,6 +464,8 @@ Subagent context defaults to `clean`.
 
 `--informed` adds summarized sibling, parent, current-active, or previously explored path conclusions. Clearly label this material as "other-path context".
 
+Clean resume may include the target path's own worktree artifact summary, but not unconfirmed full handoff reasoning.
+
 ### Subagent Reports
 
 Subagents must return:
@@ -473,6 +481,31 @@ codechange.files
 codechange.summary
 handoff
 ```
+
+For worktree runs, the report must also include:
+
+```text
+worktree.path
+worktree.branch
+worktree.base_ref
+worktree.base_sha
+worktree.changed_files
+worktree.diff_summary
+```
+
+For worktree runs, derive `codechange.files` from the worktree diff against `agent_run.worktree.base_sha`, not from the main workspace.
+
+If the worktree diff cannot be read, use:
+
+```json
+{
+  "changed": true,
+  "files": [],
+  "summary": "Worktree diff unavailable; inspect worktree manually."
+}
+```
+
+Store structured worktree details in `agent_run.worktree`; copy only the path-level summary into update `codechange`.
 
 When a subagent returns, set `agent_run.status` to `reported` and show a normal `update <key>` draft. The user must confirm before writing the update, changing the path status, setting closure fields, or changing `agent_run.status` to `completed`.
 
@@ -522,6 +555,8 @@ map
 ```
 
 Use Mermaid `graph LR` only. Use `root` for the topic node, and one node per path. Derive Mermaid node ids from path keys; if a key contains characters Mermaid cannot use as an id, replace them with `_`. Node labels must show the original `key`, title, and status; for closed paths show `closed: closed_as`. When a path has `agent_run`, append compact execution state to the label, for example `B Network retry pending / subagent running`. Do not show full updates.
+
+For worktree runs, `map` shows compact worktree state only, for example `pending / subagent running / worktree`.
 
 ```text
 map text
