@@ -52,6 +52,7 @@ Nothing is written until you explicitly confirm the proposed change.
 - **Keep alternatives visible.** Record A, B, and C before following one of them.
 - **Add ideas without losing focus.** Attach a sibling `pending` path while the current `active` path remains unchanged.
 - **Build a tree of decisions.** Create child paths when the current direction splits again.
+- **Explore alternatives in parallel.** Start subagent exploration for pending paths while the main active path remains unchanged.
 - **Record outcomes.** Save summaries, conclusions, status, and code-change reminders for each path.
 - **Resume deliberately.** Choose `clean` context to limit cross-path influence or `informed` context to include conclusions from related paths.
 - **See the whole trail.** List the workspace or export the active topic as Mermaid `graph LR` or a text tree.
@@ -142,6 +143,8 @@ $trailmap pending <idea>               Add a sibling pending path; keep active u
 $trailmap list                         List topics and paths across the workspace
 $trailmap show [key]                   Show the active topic or one path
 $trailmap update <key>                 Record progress and outcome
+$trailmap subagent <key>               Start subagent exploration for an existing path
+$trailmap ... --subagent B --allow-shared-code
 $trailmap resume <key> clean|informed  Switch the active work path
 $trailmap close <key> done|blocked|discarded
 $trailmap rename <topic title>
@@ -166,6 +169,8 @@ Write operations first show a concise draft and require explicit confirmation. T
 - isolate working-tree changes between paths
 
 `resume clean` controls conversational context only. Existing workspace code can still affect the resumed path.
+
+Subagent exploration may run in the same workspace as the main active path. Trailmap warns about shared-code risk, but it does not isolate files or manage Git state.
 
 ## Current limitations
 

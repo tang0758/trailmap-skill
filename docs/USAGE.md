@@ -52,6 +52,7 @@ $trailmap pending <idea>
 $trailmap list
 $trailmap show [key]
 $trailmap update <key>
+$trailmap subagent <key>
 $trailmap resume <key> clean|informed
 $trailmap resume <topic_id> <key> clean|informed
 $trailmap close <key> done|blocked|discarded
@@ -79,6 +80,12 @@ Result: Trailmap creates paths A and B. Use `$trailmap map` to view the path tre
 The AI chooses short unique keys by default, commonly `A/B/C` for roots and `A1/A2` for children. You can request explicit keys such as `P1/P2`; Trailmap checks for conflicts and never overwrites an existing key.
 
 If there is no active topic, Trailmap drafts a new topic and root paths. Root paths use `parent: null`; one becomes `active`, and the rest become `pending`.
+
+To request subagent exploration for a new non-active path, add `--subagent`:
+
+```text
+$trailmap Login failure may be token or network; start token --subagent B --allow-shared-code
+```
 
 ### Add child paths
 
@@ -153,6 +160,14 @@ Result: Trailmap creates A3, and A1 remains active. In other words, `pending` al
 
 Use the base command, not `pending`, when the current path itself is splitting into child paths.
 
+You can also start subagent exploration for the new sibling path:
+
+```text
+$trailmap pending Network retry may be the cause --subagent --allow-shared-code
+```
+
+The new path remains `pending`; subagent progress is tracked separately as `agent_run`.
+
 ### List all topics
 
 ```text
@@ -168,7 +183,7 @@ paused
 closed
 ```
 
-Active, pending, and paused paths show their key and title, plus a compact code-change warning when useful. Closed paths also show `closed_as` and `closed_reason`, but not their full update history.
+Active, pending, and paused paths show their key and title, plus a compact code-change warning when useful. Paths with subagent state append compact execution status such as `[pending, subagent running]`. Closed paths also show `closed_as` and `closed_reason`, but not their full update history.
 
 ### Show topic or path details
 
@@ -182,7 +197,7 @@ With no key, `show` displays the active topic, its Active Path, recent active-pa
 $trailmap show B
 ```
 
-`show [key]` displays one path inside the active topic, including its `created_from`, description, complete updates, code-change details, and closure fields when applicable.
+`show [key]` displays one path inside the active topic, including its `created_from`, description, complete updates, code-change details, latest `agent_run` fields, subagent handoff/report summary when available, and closure fields when applicable.
 
 `show <topic_id>` is not supported in v1. Use `list` to find topics and cross-topic `resume` to activate one.
 
@@ -209,6 +224,68 @@ The concise confirmation view normally shows only the path key, summary, conclus
 
 When `status_after` is `closed`, Trailmap also records closure fields. When a path is not closed, top-level closure fields must be absent.
 
+### Start subagent exploration for an existing path
+
+```text
+$trailmap subagent <key>
+$trailmap subagent B
+$trailmap subagent B --informed --allow-shared-code
+```
+
+`subagent <key>` starts subagent exploration for an existing path in the active topic. The target path must exist, must not be the current main active path, must not be closed, and must not already have `agent_run.status: running`.
+
+Trailmap keeps the main active path unchanged. The target path keeps its lifecycle status, usually `pending` or `paused`, and receives an execution overlay:
+
+```text
+B  Network retries  [pending, subagent running]
+```
+
+By default, Trailmap shows a shared workspace warning before starting the subagent. The warning exists because the subagent and the main active path may both modify the same files. `--allow-shared-code` accepts that risk and skips the separate shared-code prompt, but it does not skip the Trailmap write confirmation.
+
+If the runtime has no subagent tool available, Trailmap should not fail the path operation. It records `agent_run.status: blocked` with a concise reason after confirmation.
+
+### Start subagent exploration for new paths
+
+Subagent startup can also be attached to new non-main-active paths:
+
+```text
+$trailmap pending Network retry may be the cause --subagent --allow-shared-code
+$trailmap Login failure may be token or network; start token --subagent B --allow-shared-code
+$trailmap Login failure may be token, network, or cache; start token --subagent B,C --allow-shared-code
+```
+
+When a command creates non-main-active paths and no `--subagent` flag is present, Trailmap asks whether to start subagent exploration for zero, one, or multiple candidate paths. If `--subagent B,C` is present, those keys are selected directly.
+
+`--allow-shared-code` is risk acceptance, not write-confirmation bypass. Trailmap still shows the new path and `agent_run` draft and waits for explicit confirmation before writing state.
+
+### Subagent context modes
+
+Subagent context defaults to `clean`. Clean context contains the topic title, target path `created_from`, target path description, target path updates, minimal current active path identity, shared workspace risk, and the required report schema. It excludes detailed sibling-path reasoning.
+
+Use `--informed` when the subagent should also receive summarized sibling, parent, current-active, or previously explored path conclusions. Trailmap labels that material as **other-path context**.
+
+### Subagent reports
+
+Subagents return a fixed report:
+
+```text
+path_key
+summary
+conclusion
+status_after
+closed_as, only when status_after=closed
+codechange.changed
+codechange.files
+codechange.summary
+handoff
+```
+
+When a subagent returns, Trailmap records or presents the run as `reported` and converts the report into a normal `update <key>` draft. You must confirm before Trailmap writes the update, changes the path status, writes closure fields, or marks `agent_run.status` as `completed`.
+
+If you reject the update draft, Trailmap does not write the update, does not alter code, and keeps `agent_run.status` as `reported`.
+
+Subagents may recommend `status_after: closed` and `closed_as`, but they cannot directly close a path.
+
 ### Resume with clean or informed context
 
 Switch paths inside the active topic:
@@ -226,6 +303,8 @@ $trailmap resume <topic_id> <key> clean|informed
 Before switching, Trailmap drafts a leave-summary for the current Active Path and normally changes it to `paused`. The confirmation shows the target, selected mode, status transition, and code-change warnings. After confirmation, the target becomes `active`, `topic.active` changes to its key, and a cross-topic resume also updates `index.active_topic_id`.
 
 If the target is closed, Trailmap warns that resuming it will reopen the path and asks for explicit confirmation. Reopening appends an update and removes top-level `closed_as`, `closed_reason`, and `closed_at`; the historical closure remains in `updates`.
+
+If the target path is currently being explored by a subagent, Trailmap warns that resuming it in the main session may duplicate work or mix context. The warning does not block the resume.
 
 #### clean
 
@@ -285,7 +364,7 @@ graph LR
   A --> A1["A1 Refresh race paused"] & A2["A2 Token cache issue pending"] & A3["A3 System clock skew active"]
 ```
 
-`map` outputs one Mermaid `graph LR` for the active topic. It derives the graph from `paths[].parent` and displays `key`, title, status, and `closed_as` for closed paths. It does not include complete updates.
+`map` outputs one Mermaid `graph LR` for the active topic. It derives the graph from `paths[].parent` and displays `key`, title, status, `closed_as` for closed paths, and compact subagent state when present. It does not include complete updates.
 
 ```text
 $trailmap map text
@@ -404,7 +483,7 @@ New workspaces use:
 
 ## Code-change and Git safety
 
-Trailmap records code changes as reminders and checklists. It never automatically:
+Trailmap records code changes as reminders and checklists. Subagent exploration may run in the same shared workspace as the main active path. Trailmap warns about shared workspace code risk, but it never automatically:
 
 - stash changes
 - revert files
