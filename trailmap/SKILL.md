@@ -258,6 +258,8 @@ For active, pending, and paused paths, show only `key`, `title`, and compact cod
 
 For closed paths, show `key`, `title`, `closed_as`, and `closed_reason`. Do not expand full `updates` in list output.
 
+For paths with `agent_run`, append compact execution state such as `[pending, subagent running]` or `[paused, subagent reported]`.
+
 ### `show [key]`
 
 Show details for the active topic only.
@@ -276,7 +278,7 @@ Also support:
 show <key>
 ```
 
-Show that path in the active topic, including `created_from`, merged path description, complete `updates`, codechange details, and closure fields if closed.
+Show that path in the active topic, including `created_from`, merged path description, complete `updates`, codechange details, latest `agent_run` fields, subagent handoff/report summary when available, and closure fields if closed.
 
 Do not support `show <topic_id>` in v1.
 
@@ -333,6 +335,8 @@ Before switching:
 The confirmation view shows the current path's leave summary, the target path, the selected `clean` or `informed` mode, and the resulting status transition. Preserve relevant code-change warnings, especially when workspace changes may contaminate a `clean` resume.
 
 If target path is `closed`, warn that it is closed and ask for explicit reopen confirmation. If confirmed, append a reopen update, set the target path to `active`, and remove top-level closure fields.
+
+If the target path has `agent_run.status: "running"`, include a warning that the path is currently being explored by a subagent and resuming it in the main session may duplicate work or mix context. Do not block the resume.
 
 For cross-topic resume, support:
 
@@ -430,7 +434,7 @@ Output a Mermaid `graph LR` for the active topic by default. Build the tree from
 map
 ```
 
-Use Mermaid `graph LR` only. Use `root` for the topic node, and one node per path. Derive Mermaid node ids from path keys; if a key contains characters Mermaid cannot use as an id, replace them with `_`. Node labels must show the original `key`, title, and status; for closed paths show `closed: closed_as`. Do not show full updates.
+Use Mermaid `graph LR` only. Use `root` for the topic node, and one node per path. Derive Mermaid node ids from path keys; if a key contains characters Mermaid cannot use as an id, replace them with `_`. Node labels must show the original `key`, title, and status; for closed paths show `closed: closed_as`. When a path has `agent_run`, append compact execution state to the label, for example `B Network retry pending / subagent running`. Do not show full updates.
 
 ```text
 map text
