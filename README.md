@@ -53,6 +53,7 @@ Nothing is written until you explicitly confirm the proposed change.
 - **Add ideas without losing focus.** Attach a sibling `pending` path while the current `active` path remains unchanged.
 - **Build a tree of decisions.** Create child paths when the current direction splits again.
 - **Explore alternatives in parallel.** Start subagent exploration for pending paths while the main active path remains unchanged.
+- **Isolate risky subagent work.** Use `--worktree` to run a subagent path in a separate Git worktree.
 - **Record outcomes.** Save summaries, conclusions, status, and code-change reminders for each path.
 - **Resume deliberately.** Choose `clean` context to limit cross-path influence or `informed` context to include conclusions from related paths.
 - **See the whole trail.** List the workspace or export the active topic as Mermaid `graph LR` or a text tree.
@@ -144,6 +145,8 @@ $trailmap list                         List topics and paths across the workspac
 $trailmap show [key]                   Show the active topic or one path
 $trailmap update <key>                 Record progress and outcome
 $trailmap subagent <key>               Start subagent exploration for an existing path
+$trailmap subagent <key> --worktree    Start subagent exploration in an isolated worktree
+$trailmap subagent <key> --worktree --base <ref>
 $trailmap ... --subagent B --allow-shared-code
 $trailmap resume <key> clean|informed  Switch the active work path
 $trailmap close <key> done|blocked|discarded
@@ -171,6 +174,8 @@ Write operations first show a concise draft and require explicit confirmation. T
 `resume clean` controls conversational context only. Existing workspace code can still affect the resumed path.
 
 Subagent exploration may run in the same workspace as the main active path. Trailmap warns about shared-code risk, but it does not isolate files or manage Git state.
+
+Worktree mode creates a local branch and worktree after confirmation. Trailmap records the path and branch but does not merge, commit, clean up, or apply worktree changes automatically. Retained worktree changes stay in that worktree until you inspect or integrate them yourself.
 
 ## Current limitations
 

@@ -53,6 +53,8 @@ $trailmap list
 $trailmap show [key]
 $trailmap update <key>
 $trailmap subagent <key>
+$trailmap subagent <key> --worktree
+$trailmap subagent <key> --worktree --base <ref>
 $trailmap resume <key> clean|informed
 $trailmap resume <topic_id> <key> clean|informed
 $trailmap close <key> done|blocked|discarded
@@ -85,6 +87,7 @@ To request subagent exploration for a new non-active path, add `--subagent`:
 
 ```text
 $trailmap Login failure may be token or network; start token --subagent B --allow-shared-code
+$trailmap Login failure may be token, network, or cache; start token --subagent B,C --worktree
 ```
 
 ### Add child paths
@@ -185,6 +188,8 @@ closed
 
 Active, pending, and paused paths show their key and title, plus a compact code-change warning when useful. Paths with subagent state append compact execution status such as `[pending, subagent running]`. Closed paths also show `closed_as` and `closed_reason`, but not their full update history.
 
+For worktree subagent runs, `list` keeps this compact and appends worktree state, for example `[pending, subagent running, worktree]`.
+
 ### Show topic or path details
 
 ```text
@@ -198,6 +203,8 @@ $trailmap show B
 ```
 
 `show [key]` displays one path inside the active topic, including its `created_from`, description, complete updates, code-change details, latest `agent_run` fields, subagent handoff/report summary when available, and closure fields when applicable.
+
+For worktree subagent runs, `show <key>` also displays the worktree path, worktree branch, base ref, base sha, whether the main workspace was dirty when the worktree was created, changed files, and diff summary.
 
 `show <topic_id>` is not supported in v1. Use `list` to find topics and cross-topic `resume` to activate one.
 
@@ -230,6 +237,9 @@ When `status_after` is `closed`, Trailmap also records closure fields. When a pa
 $trailmap subagent <key>
 $trailmap subagent B
 $trailmap subagent B --informed --allow-shared-code
+$trailmap subagent B --worktree
+$trailmap subagent B --worktree --informed
+$trailmap subagent B --worktree --base origin/main
 ```
 
 `subagent <key>` starts subagent exploration for an existing path in the active topic. The target path must exist, must not be the current main active path, must not be closed, and must not already have `agent_run.status: running`.
@@ -244,6 +254,60 @@ By default, Trailmap shows a shared workspace warning before starting the subage
 
 If the runtime has no subagent tool available, Trailmap should not fail the path operation. It records `agent_run.status: blocked` with a concise reason after confirmation.
 
+### Run a subagent in a worktree
+
+Worktree mode is opt-in. Use `--worktree` when a subagent path may make code changes that should be isolated from the main active path:
+
+```text
+$trailmap subagent B --worktree
+$trailmap subagent B --worktree --informed
+$trailmap subagent B --worktree --base origin/main
+```
+
+`--worktree` and `--allow-shared-code` are mutually exclusive. Use shared workspace mode when you accept file-level interference risk; use `--worktree` when you want a separate local Git worktree.
+
+The base defaults to `HEAD`. `--base <ref>` overrides it. If `--base <ref>` cannot be resolved, Trailmap blocks that subagent run and does not fall back to `HEAD`.
+
+Default worktree locations are:
+
+```text
+.worktrees/trailmap/<topic-id>/<path-key>/
+trailmap/<topic-id>/<path-key>   # branch
+```
+
+If the directory is non-empty or the branch already exists, Trailmap appends the same unique suffix to the worktree path and worktree branch. It does not reuse existing non-empty directories or branches.
+
+Main-workspace uncommitted changes are not copied into the worktree. Trailmap records `base_dirty: true` when the main workspace has uncommitted changes at worktree creation time.
+
+### Worktree confirmation and safety
+
+Before creating a worktree, Trailmap shows a confirmation draft containing the path, context mode, base ref and sha, branch to create, worktree path, whether the main workspace has uncommitted changes, whether `.gitignore` will be updated, and the safety notes.
+
+`.worktrees/` must be ignored before creating project-local worktrees. If it is not ignored, Trailmap may append only this line to `.gitignore` after confirmation:
+
+```text
+.worktrees/
+```
+
+Trailmap does not merge, commit, clean up, or apply worktree changes automatically. It also does not stash, revert, copy files, or switch the main workspace branch.
+
+### Worktree results
+
+For worktree runs, subagent reports also include:
+
+```text
+worktree.path
+worktree.branch
+worktree.base_ref
+worktree.base_sha
+worktree.changed_files
+worktree.diff_summary
+```
+
+Trailmap derives `codechange.files` from the worktree diff against `agent_run.worktree.base_sha`, not from the main workspace. If the diff cannot be read, it records `changed: true`, an empty file list, and `Worktree diff unavailable; inspect worktree manually.`
+
+When a worktree subagent reports, Trailmap keeps it as a retained worktree by default and records `agent_run.worktree.status: retained`. The first worktree version does not remove worktrees automatically.
+
 ### Start subagent exploration for new paths
 
 Subagent startup can also be attached to new non-main-active paths:
@@ -252,6 +316,8 @@ Subagent startup can also be attached to new non-main-active paths:
 $trailmap pending Network retry may be the cause --subagent --allow-shared-code
 $trailmap Login failure may be token or network; start token --subagent B --allow-shared-code
 $trailmap Login failure may be token, network, or cache; start token --subagent B,C --allow-shared-code
+$trailmap pending Network retry may be the cause --subagent --worktree
+$trailmap Login failure may be token, network, or cache; start token --subagent B,C --worktree
 ```
 
 When a command creates non-main-active paths and no `--subagent` flag is present, Trailmap asks whether to start subagent exploration for zero, one, or multiple candidate paths. If `--subagent B,C` is present, those keys are selected directly.
@@ -305,6 +371,10 @@ Before switching, Trailmap drafts a leave-summary for the current Active Path an
 If the target is closed, Trailmap warns that resuming it will reopen the path and asks for explicit confirmation. Reopening appends an update and removes top-level `closed_as`, `closed_reason`, and `closed_at`; the historical closure remains in `updates`.
 
 If the target path is currently being explored by a subagent, Trailmap warns that resuming it in the main session may duplicate work or mix context. The warning does not block the resume.
+
+### Resume paths with retained worktree changes
+
+If the target path has a retained worktree with changed files or a diff summary, Trailmap warns that those code changes are not merged into the current workspace. `resume clean` may include the target path's own worktree artifact summary, but it will not apply those changes and will not include unconfirmed full handoff reasoning.
 
 #### clean
 
@@ -365,6 +435,8 @@ graph LR
 ```
 
 `map` outputs one Mermaid `graph LR` for the active topic. It derives the graph from `paths[].parent` and displays `key`, title, status, `closed_as` for closed paths, and compact subagent state when present. It does not include complete updates.
+
+For worktree subagent runs, `map` shows compact worktree state only, for example `pending / subagent running / worktree`.
 
 ```text
 $trailmap map text
