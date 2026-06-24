@@ -115,6 +115,32 @@ Rules:
 - Valid `closed_as` values are `done`, `blocked`, and `discarded`.
 - If a path is reopened, remove top-level `closed_as`, `closed_reason`, and `closed_at`; closure history remains in `updates`.
 
+Agent run fields:
+
+```json
+{
+  "agent_run": {
+    "status": "running",
+    "mode": "subagent",
+    "context_mode": "clean",
+    "run_id": "optional-runtime-id",
+    "started_at": "2026-06-24T10:00:00+08:00",
+    "risk": "shared_workspace_code"
+  }
+}
+```
+
+Rules:
+
+- `agent_run` is optional and represents execution state, not path lifecycle state.
+- `agent_run.status` may be `running`, `reported`, `completed`, `failed`, `blocked`, or `cancelled`.
+- `agent_run.mode` is `subagent` in v1.
+- `agent_run.context_mode` is `clean` by default and may be `informed`.
+- `run_id` is optional; record it only when the runtime provides one.
+- Keep only the most recent `agent_run` at path top level; historical results belong in `updates`.
+- Do not mark a subagent path as a second `active` path. The topic still has at most one main active path.
+- In human views, append compact execution state such as `[pending, subagent running]`.
+
 Path update:
 
 ```json
