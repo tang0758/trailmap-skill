@@ -484,6 +484,23 @@ show
 map
 ```
 
+## JSON write safety
+
+Trailmap topic files contain repeated field names across many paths, such as `status`, `updates`, `closed_as`, and `closed_reason`. Agents should not edit those fields with loose textual context.
+
+Preferred write order:
+
+1. parse the topic JSON
+2. locate the target path by exact `paths[].key`
+3. snapshot statuses for all paths before the write
+4. modify only the intended path object and explicitly required topic fields
+5. serialize the JSON
+6. verify invariants after writing
+
+If a manual textual patch is used, the patch context must include the target path's unique `"key"` and `"title"` in the same hunk. Do not patch a bare `"status"` line when multiple paths have the same field.
+
+After every write, verify that the intended path has the intended status, no unintended sibling or parent path changed status, and closed paths have `closed_as`, `closed_reason`, `closed_at`, plus a last update with `status_after: "closed"`.
+
 ## Data model
 
 Trailmap stores a flat `paths` list with parent references:

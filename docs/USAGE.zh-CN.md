@@ -482,6 +482,23 @@ show
 map
 ```
 
+## JSON 写入安全
+
+Trailmap topic 文件里，很多 path 都有相同字段名，例如 `status`、`updates`、`closed_as` 和 `closed_reason`。Agent 不应使用松散文本上下文直接 patch 这些重复字段。
+
+推荐写入顺序：
+
+1. 解析 topic JSON
+2. 用精确的 `paths[].key` 定位目标路径
+3. 写入前 snapshot statuses for all paths
+4. 只修改目标 path object 和明确需要修改的 topic 字段
+5. 序列化 JSON
+6. 写入后验证 invariants
+
+如果必须手动 textual patch，同一个 hunk 的上下文必须包含目标路径唯一的 `"key"` 和 `"title"`。当多个 path 都有同名字段时，不要只 patch 裸 `"status"` 行。
+
+每次写入后都要验证：目标 path 已变成预期状态、没有 unintended sibling or parent path changed status、closed 路径具备 `closed_as`、`closed_reason`、`closed_at`，并且最后一条 update 的 `status_after` 是 `"closed"`。
+
 ## 数据模型
 
 Trailmap 使用带 parent 引用的扁平 `paths` 列表：

@@ -564,6 +564,32 @@ map text
 
 Output a plain text tree only, using the same fields.
 
+## JSON Write Safety
+
+When modifying topic JSON, do not patch repeated fields such as `status`, `updates`, `closed_as`, or `closed_reason` using loose textual context.
+
+Preferred write order:
+
+1. Parse JSON into an object.
+2. Locate the target path by exact `paths[].key`.
+3. Snapshot statuses for all paths before the write.
+4. Modify only the intended path object and any explicitly required topic fields.
+5. Serialize JSON back.
+6. Verify invariants after writing.
+
+If using a manual textual patch, the patch context must include the target path's unique `"key"` and `"title"` in the same hunk. Do not patch a bare `"status"` line, bare `"updates"` array, or bare closure field when multiple paths contain the same field names.
+
+After every write, verify:
+
+- `topic.active` is `null` or exactly one path has `status: "active"` with that key.
+- The intended path key has the intended status.
+- No unintended sibling or parent path changed status.
+- If a path is closed, it has `closed_as`, `closed_reason`, `closed_at`, and its last update has `status_after: "closed"`.
+
+For `update <key>`, `close <key>`, and subagent report writes, compare the pre-write status snapshot with the post-write status snapshot. Only the intended path, the previous active path during `resume`, and explicitly documented newly created paths may change status. If any unexpected path changed, stop, diagnose the write, fix the JSON, and re-run verification before reporting success.
+
+When a natural-language update implies closure but does not name the closure class, draft the interpretation explicitly, for example `Interpreting this update as closing path A1 as discarded.` Require confirmation before writing.
+
 ## Confirmation Rule
 
 Any operation that writes or changes state must first show a draft and wait for explicit user confirmation. Every write draft must end with one explicit confirmation question, such as `Confirm writing the above changes?`. Do not write any state before the user explicitly confirms.
