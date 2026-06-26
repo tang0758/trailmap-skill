@@ -231,6 +231,8 @@ The concise confirmation view normally shows only the path key, summary, conclus
 
 When `status_after` is `closed`, Trailmap also records closure fields. When a path is not closed, top-level closure fields must be absent.
 
+If your wording implies closing, invalidating, completing, or blocking a path but does not provide `closed_as`, Trailmap must ask you to choose `done`, `blocked`, or `discarded`. It does not write a closed update until that closure class is explicitly confirmed.
+
 ### Start subagent exploration for an existing path
 
 ```text
@@ -357,6 +359,8 @@ When a subagent returns, Trailmap records or presents the run as `reported` and 
 If you reject the update draft, Trailmap does not write the update, does not alter code, and keeps `agent_run.status` as `reported`.
 
 Subagents may recommend `status_after: closed` and `closed_as`, but they cannot directly close a path.
+
+Missing required report fields are not converted into a normal `update <key>` draft. Trailmap asks the subagent or user to provide the missing fields, or marks the run as `blocked` or `failed` with a concise reason after confirmation.
 
 ### Resume with clean or informed context
 

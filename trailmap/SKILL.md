@@ -378,6 +378,8 @@ Before writing, show the path key, summary, conclusion, and `status_after`. If `
 
 If `status_after` is `closed`, set top-level `closed_as`, `closed_reason`, and `closed_at`. If `status_after` is not `closed`, ensure top-level closure fields are absent.
 
+If the user's natural language implies closing, invalidating, completing, or blocking a path but does not provide `closed_as`, draft the interpretation and require the user to choose `done`, `blocked`, or `discarded`. Do not write a closed update until the closure class is explicitly confirmed.
+
 ### `subagent <key>`
 
 Start subagent exploration for an existing path in the active topic.
@@ -517,6 +519,8 @@ If the worktree diff cannot be read, use:
 ```
 
 Store structured worktree details in `agent_run.worktree`; copy only the path-level summary into update `codechange`.
+
+Missing required report fields must not be converted into a normal `update <key>` draft. Ask the subagent or user to provide the missing fields, or mark the run as `blocked` or `failed` with a concise reason after confirmation.
 
 When a subagent returns, set `agent_run.status` to `reported` and show a normal `update <key>` draft. The user must confirm before writing the update, changing the path status, setting closure fields, or changing `agent_run.status` to `completed`.
 
