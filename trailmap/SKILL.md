@@ -453,6 +453,8 @@ resume <topic_id> <key> informed
 
 This updates `index.active_topic_id` and the target topic's `active`.
 
+For cross-topic resume, the previous active topic's previous active path still follows the normal leave-summary flow and becomes `paused`; do not only switch `index.active_topic_id`.
+
 ### Resume Context Modes
 
 `clean` includes only:
@@ -627,6 +629,7 @@ Read-only operations do not require confirmation:
 list
 show
 map
+map text
 ```
 
 ## Non-Goals

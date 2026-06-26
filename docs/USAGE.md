@@ -378,6 +378,8 @@ $trailmap resume <topic_id> <key> clean|informed
 
 Before switching, Trailmap drafts a leave-summary for the current Active Path and normally changes it to `paused`. The confirmation shows the target, selected mode, status transition, and code-change warnings. After confirmation, the target becomes `active`, `topic.active` changes to its key, and a cross-topic resume also updates `index.active_topic_id`.
 
+For cross-topic resume, the previous active topic's previous active path still follows the normal leave-summary flow and becomes `paused`; the operation must not only switch `index.active_topic_id`.
+
 If the target is closed, Trailmap warns that resuming it will reopen the path and asks for explicit confirmation. Reopening appends an update and removes top-level `closed_as`, `closed_reason`, and `closed_at`; the historical closure remains in `updates`.
 
 If the target path is currently being explored by a subagent, Trailmap warns that resuming it in the main session may duplicate work or mix context. The warning does not block the resume.
@@ -493,6 +495,7 @@ Read-only operations:
 list
 show
 map
+map text
 ```
 
 ## JSON write safety

@@ -376,6 +376,8 @@ $trailmap resume <topic_id> <key> clean|informed
 
 切换前，Trailmap 会为当前活跃路径草拟离开摘要，并默认将它改为 `paused`。确认草案会显示目标路径、所选模式、状态变化和代码改动警告。明确确认后，目标路径变为 `active`，`topic.active` 更新为目标 key；跨主题 resume 还会更新 `index.active_topic_id`。
 
+跨主题 resume 时，原 active topic 的原 active path 仍然必须走普通 leave-summary 流程并变为 `paused`；不能只切换 `index.active_topic_id`。
+
 如果目标路径已经 closed，Trailmap 会警告本次操作将重新打开路径，并要求明确确认。重开后会追加一条 update，并移除顶层 `closed_as`、`closed_reason` 和 `closed_at`；历史关闭记录仍保留在 `updates` 中。
 
 如果目标路径正在被 subagent 探索，Trailmap 会提示在主会话 resume 这条路径可能造成重复工作或上下文混合。这个提示不会阻止 resume。
@@ -491,6 +493,7 @@ rename
 list
 show
 map
+map text
 ```
 
 ## JSON 写入安全
