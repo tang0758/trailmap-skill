@@ -173,7 +173,7 @@ Trailmap 在 workspace 中保存记录：
 
 `resume clean` 只控制对话上下文。工作区里已经存在的代码仍然可能影响回溯后的路径。
 
-subagent 探索可能和主会话 active path 在同一个共享工作区中运行。Trailmap 会提示共享代码风险，但不会隔离文件或管理 Git 状态。
+subagent 探索可能和主会话 active path 在同一个共享工作区中运行。Trailmap 会提示共享代码风险；只有明确确认 worktree 模式后才会隔离文件。
 
 worktree 模式会在确认后创建本地 branch 和 worktree。Trailmap 只记录 path 和 branch，不会自动 merge、commit、清理或应用 worktree 改动。retained worktree 中的改动会保留在该 worktree 内，直到你自行检查或集成。
 
@@ -182,7 +182,7 @@ worktree 模式会在确认后创建本地 branch 和 worktree。Trailmap 只记
 - Trailmap 记录决策点和路径级进展，不保存每一轮聊天。
 - 它通过 parent key 表达树，不处理通用图关系。
 - 它可以输出 Mermaid 或文本，但不会直接写入 Notion。
-- 它会提示 Git 风险，但不管理 Git 状态。
+- 它会提示 Git 风险。除已确认的 worktree 创建外，不管理 Git 集成。
 
 ## 文档
 

@@ -145,16 +145,21 @@ Worktree execution fields:
 
 ```json
 {
-  "worktree": {
-    "enabled": true,
-    "status": "ready",
-    "path": ".worktrees/trailmap/login-timeout/B",
-    "branch": "trailmap/login-timeout/B",
-    "base_ref": "HEAD",
-    "base_sha": "abc123",
-    "base_dirty": true,
-    "changed_files": [],
-    "diff_summary": ""
+  "agent_run": {
+    "status": "running",
+    "mode": "subagent",
+    "context_mode": "clean",
+    "worktree": {
+      "enabled": true,
+      "status": "ready",
+      "path": ".worktrees/trailmap/login-timeout/B",
+      "branch": "trailmap/login-timeout/B",
+      "base_ref": "HEAD",
+      "base_sha": "abc123",
+      "base_dirty": true,
+      "changed_files": [],
+      "diff_summary": ""
+    }
   }
 }
 ```
@@ -305,6 +310,8 @@ Before writing, show the new pending path's key, title, goal, and hypothesis, pl
 
 For `pending <idea> --subagent`, the new sibling path remains `pending` and receives `agent_run.status: "running"` after confirmation. Include a shared workspace code risk warning unless `--allow-shared-code` is present.
 
+For `pending <idea> --subagent --worktree`, also show the complete worktree startup draft before writing: context mode, base ref and base sha, branch to create, worktree path to create, dirty main-workspace status, whether `.gitignore` will be updated, and the worktree safety notes.
+
 ### `list`
 
 Show a cross-topic dashboard for the workspace.
@@ -381,7 +388,8 @@ Validation:
 - Require the target path to exist in the active topic.
 - Reject the current main active path.
 - Reject closed paths.
-- Reject paths whose `agent_run.status` is already `running`.
+- Reject paths whose `agent_run.status` is already `running` or `reported`.
+- If `agent_run.status` is `reported`, explain that the previous subagent report must be accepted, rejected, completed, cancelled, or otherwise resolved before starting another run.
 - Reject commands that combine `--worktree` and `--allow-shared-code`.
 
 Before writing, show a concise startup draft with the path key/title/status, context mode, planned `agent_run.status`, and shared workspace code risk. `--allow-shared-code` skips only the separate risk question; it does not skip the write-confirmation draft.
@@ -395,6 +403,9 @@ For `--worktree`:
 - Create one worktree and one branch per selected path.
 - Do not copy uncommitted main-workspace changes into the worktree.
 - Record `base_dirty: true` when the main workspace has uncommitted changes.
+- If branch creation, directory creation, Git worktree creation, or subagent startup fails, write `agent_run.status: "blocked"` and `agent_run.worktree.status: "failed"` for that path; it does not start the subagent and does not fall back to shared workspace.
+- After a worktree creation failure, show retry options: fix the underlying issue and retry with `--worktree`, or explicitly start a separate shared-workspace run without `--worktree`.
+- For multi-path `--subagent <key1,key2> --worktree`, create and record each selected path independently. Single-path failure does not roll back successful paths; successful paths keep `agent_run.status: "running"` and `agent_run.worktree.status: "ready"`, while failed paths record `blocked` and `failed`.
 
 Default worktree path:
 
@@ -600,6 +611,7 @@ Write operations include:
 no subcommand
 pending
 update
+subagent
 resume
 close
 rename
@@ -615,7 +627,7 @@ map
 
 ## Non-Goals
 
-Do not automatically roll back code, stash changes, commit changes, or create git branches.
+Do not automatically roll back code, stash changes, commit changes, or create git branches unless the user explicitly confirms a `--worktree` draft. Even in worktree mode, do not automatically merge, cherry-pick, apply patches, copy files, commit, stash, revert, or switch the main workspace branch.
 
 Do not directly push to Notion in v1. Mermaid and text output should be easy to copy into Notion or other documentation tools.
 

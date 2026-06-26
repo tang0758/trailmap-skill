@@ -173,7 +173,7 @@ Write operations first show a concise draft and require explicit confirmation. T
 
 `resume clean` controls conversational context only. Existing workspace code can still affect the resumed path.
 
-Subagent exploration may run in the same workspace as the main active path. Trailmap warns about shared-code risk, but it does not isolate files or manage Git state.
+Subagent exploration may run in the same workspace as the main active path. Trailmap warns about shared-code risk, but it does not isolate files unless worktree mode is explicitly confirmed.
 
 Worktree mode creates a local branch and worktree after confirmation. Trailmap records the path and branch but does not merge, commit, clean up, or apply worktree changes automatically. Retained worktree changes stay in that worktree until you inspect or integrate them yourself.
 
@@ -182,7 +182,7 @@ Worktree mode creates a local branch and worktree after confirmation. Trailmap r
 - Trailmap records decision points and path-level updates, not every chat message.
 - It models a tree through parent keys, not a general graph.
 - It exports Mermaid or text but does not write directly to Notion.
-- It reports Git-related risk but does not manage Git state.
+- It reports Git-related risk. Except for confirmed worktree creation, it does not manage Git integration.
 
 ## Documentation
 

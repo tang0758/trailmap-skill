@@ -242,7 +242,7 @@ $trailmap subagent B --worktree --informed
 $trailmap subagent B --worktree --base origin/main
 ```
 
-`subagent <key>` starts subagent exploration for an existing path in the active topic. The target path must exist, must not be the current main active path, must not be closed, and must not already have `agent_run.status: running`.
+`subagent <key>` starts subagent exploration for an existing path in the active topic. The target path must exist, must not be the current main active path, must not be closed, and must not already have `agent_run.status: running` or `agent_run.status: reported`. A reported run must be accepted, rejected, completed, cancelled, or otherwise resolved before starting another run.
 
 Trailmap keeps the main active path unchanged. The target path keeps its lifecycle status, usually `pending` or `paused`, and receives an execution overlay:
 
@@ -278,6 +278,8 @@ trailmap/<topic-id>/<path-key>   # branch
 If the directory is non-empty or the branch already exists, Trailmap appends the same unique suffix to the worktree path and worktree branch. It does not reuse existing non-empty directories or branches.
 
 Main-workspace uncommitted changes are not copied into the worktree. Trailmap records `base_dirty: true` when the main workspace has uncommitted changes at worktree creation time.
+
+If branch creation, directory creation, Git worktree creation, or subagent startup fails, Trailmap records that path as `agent_run.status: blocked` with `agent_run.worktree.status: failed`. It does not start the subagent and does not fall back to shared workspace. The next step should be either fixing the underlying issue and retrying with `--worktree`, or explicitly starting a separate shared-workspace run without `--worktree`.
 
 ### Worktree confirmation and safety
 
@@ -323,6 +325,10 @@ $trailmap Login failure may be token, network, or cache; start token --subagent 
 When a command creates non-main-active paths and no `--subagent` flag is present, Trailmap asks whether to start subagent exploration for zero, one, or multiple candidate paths. If `--subagent B,C` is present, those keys are selected directly.
 
 `--allow-shared-code` is risk acceptance, not write-confirmation bypass. Trailmap still shows the new path and `agent_run` draft and waits for explicit confirmation before writing state.
+
+For `pending <idea> --subagent --worktree`, the confirmation draft also includes worktree startup details: context mode, base ref and sha, branch, worktree path, dirty main-workspace status, `.gitignore` update, and safety notes.
+
+For multi-path `--subagent B,C --worktree`, each selected path is created and recorded independently. Single-path failure does not roll back successful paths; successful paths remain `running` and `ready`, while failed paths record `blocked` and `failed`.
 
 ### Subagent context modes
 
@@ -471,6 +477,7 @@ Write operations requiring confirmation:
 base command
 pending
 update
+subagent
 resume
 close
 rename
@@ -577,7 +584,8 @@ Trailmap records code changes as reminders and checklists. Subagent exploration 
 - stash changes
 - revert files
 - commit changes
-- create or switch Git branches
+- create Git branches, except after explicit confirmation of a `--worktree` draft
+- switch the main workspace branch
 - roll back work from another path
 
 Before `resume clean`, inspect whether existing workspace changes belong to the path you are leaving. Trailmap can warn about contamination, but it does not alter the files.
