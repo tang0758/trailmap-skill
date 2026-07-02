@@ -68,6 +68,12 @@ Path A update noted: token expiry ruled out; auth.ts changed during testing.
 rg -n "agent_run|worktree|codechange|clean|informed|active_topic_id|\.trailmap/marks" trailmap/SKILL.md
 ```
 
+#### 实际结果
+
+- 命令退出码为 `0`，共输出 `99` 个匹配行。
+- 代表性证据包括：第 8、15 行的 `.trailmap/marks` 旧存储，第 24、454 行的 `active_topic_id` 全局选择状态，以及第 122、152、186 行的 `agent_run`、worktree 和 `codechange` 执行跟踪。
+- 第 3、125、138 行还命中 `clean`/`informed` 上下文模式；这些结果足以证明旧 Skill 保留了 Lite 必须移除的能力。
+
 RED 期望：命令找到匹配项。任一匹配都证明旧 Skill 仍包含 Lite 不接受的执行编排、上下文模式、代码改动跟踪或全局选择状态。
 
 ## GREEN 通用验收规则
