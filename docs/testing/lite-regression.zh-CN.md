@@ -211,6 +211,8 @@ $trailmap use billing-timeout
 
 场景 C：新聊天没有标记且仅有一个 Topic。期望可自动选择该 Topic，并在回复首行打印标记。
 
+场景 D：新聊天没有标记且 workspace 中没有 Topic。期望只要求显式调用 `$trailmap new <topic-title>`，不创建空 Topic，不输出伪造的 Topic 标记。
+
 ### TC-004 `pending` 默认创建 sibling
 
 前置状态：A1 为 active 且 `parent = "A"`。
@@ -360,17 +362,29 @@ $trailmap remove login-failure
 $trailmap mark pending check network retry
 $trailmap resume B clean
 $trailmap resume B informed
+$trailmap resume B --informed
+$trailmap subagent B
 $trailmap pending check network retry --subagent
 $trailmap pending check network retry --worktree
 ```
 
-期望：全部作为无效输入拒绝且不写入；不忽略 leading `mark`，不接受 clean/informed 模式，不接受 subagent/worktree 旗标，也不回退到旧存储或旧自然语言分支语法。
+期望：全部作为无效输入拒绝且不写入；不忽略 leading `mark`，不接受 clean/informed 上下文模式，不接受 `subagent` 命令或 subagent/worktree 旗标，也不回退到旧存储或旧自然语言分支语法。
 
 ### TC-017 简洁输出
 
 依次执行无歧义的 `pending`、`update`、`resume`、`close` 和 `rename`。
 
 期望：每次回复首行是 Topic 标记，随后只给一行操作结果；只有 closed resume 命令提示、无效输入或并发冲突可增加一行必要说明。回复不得复述提示词背景、完整 JSON、Skill 规则、调试建议或“我将继续处理”的承诺。
+
+### TC-018 同一 Topic 并发写入拒绝覆盖
+
+前置状态：两个写入者都已读取 `login-failure.json` 的同一版本。写入者一先成功执行 `$trailmap update A first note`，使该文件内容发生变化；写入者二仍基于旧版本准备执行：
+
+```text
+$trailmap update B second note
+```
+
+期望：写入者二在落盘前重读 `login-failure.json`，检测到与其读取版本不一致后拒绝整次写入并要求用户重试。文件保留写入者一的结果，不出现 `second note`，不覆盖或合并并发变化；其他 Topic 文件也不改变。回复保持 Topic 标记，并只增加一行并发冲突说明。
 
 ## 最终验收
 
@@ -381,4 +395,5 @@ GREEN 实现完成后应同时满足：
 - 恢复聊天依靠最新 Topic 标记；新聊天通过 `use <topic-id>` 选择多个 Topic 中的一个。
 - 不存在全局 `active_topic_id`、`index.json`、删除行为、legacy 语法或路径执行行为。
 - 不同 Topic 的写入相互隔离，所有状态转换满足单 active 不变量。
+- 同一 Topic 的并发变化会在写入前被检测并拒绝覆盖。
 - Topic 已选定时，输出始终以 Topic 标记开头并保持简洁，且不包含排障或执行建议。
