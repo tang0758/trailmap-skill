@@ -92,6 +92,7 @@ RED 期望：命令找到匹配项。任一匹配都证明旧 Skill 仍包含 Li
 - 新聊天没有 Topic 标记时，用户使用 `use <topic-id>` 选择已有 Topic。
 - 若 workspace 只有一个 Topic，可自动选择；有多个 Topic 且无标记时，只列出 id/title 并要求 `use <topic-id>`；没有 Topic 时，只要求 `new <topic-title>`。
 - 每个 Topic 独立存放在 `.trailmap/topics/<topic-id>.json`。不同 Topic 必须写入不同文件。
+- Topic id 必须是匹配 `^[a-z0-9]+(?:-[a-z0-9]+)*$` 的 ASCII slug，在 workspace 内唯一，创建后不可变。任何 id 冲突都不得覆盖现有 Topic 文件。
 - 不创建 `index.json`，不存储 `active_topic_id`，也不通过其他全局文件记录当前选择。
 - 读写某个 Topic 不得改变其他 Topic 文件。
 
@@ -102,7 +103,7 @@ RED 期望：命令找到匹配项。任一匹配都证明旧 Skill 仍包含 Li
 - `pending` 标题逐字保存用户提供给 `<title>` 的文本，不改写、不翻译、不补充推断。
 - `update` 只记录用户提供的 note；不得从代码、Git、对话上下文或路径标题生成额外结论。
 - 显式且无歧义的命令立即写入。只有 AI 代拟 update 内容、输入有歧义或输入无效时才要求确认。
-- 每次写入前重读目标 Topic；若读取后发现并发变化，拒绝覆盖并要求用户重试。
+- 每次写入在读取目标 Topic 后立即计算并仅在本次操作中保留文件完整字节的 SHA-256；在替换文件前立即重读并计算同样的哈希。两者不同时拒绝整次写入并要求用户重试，不储存 revision 字段。
 - 不提供删除命令。`close` 只改变状态并保留路径及历史；任何命令都不得删除 Topic、路径或 update。
 
 ### 输出约束
@@ -195,7 +196,7 @@ $trailmap update A token expiry has been ruled out. We changed auth.ts while tes
 $trailmap new Production login failure --id login-failure
 ```
 
-期望：创建 `.trailmap/topics/login-failure.json`，id/title 分别为 `login-failure` 和 `Production login failure`；回复以对应 Topic 标记开头。不创建 `index.json`。省略 `--id` 时生成稳定、可用且不覆盖现有文件的 id；id 冲突时拒绝覆盖。
+期望：创建 `.trailmap/topics/login-failure.json`，id/title 分别为 `login-failure` 和 `Production login failure`；回复以对应 Topic 标记开头。不创建 `index.json`。省略 `--id` 时，从 title 生成匹配 `^[a-z0-9]+(?:-[a-z0-9]+)*$` 的 ASCII slug；若基础 slug 已存在，使用首个可用的 `-2`、`-3` 等数字后缀保证 workspace 内唯一。无法从 title 生成合法 slug 时拒绝创建并要求显式 `--id`。显式 id 冲突时拒绝写入；无论自动生成还是显式提供，都不得覆盖现有文件，Topic id 创建后不得因 `rename` 或其他命令改变。
 
 ### TC-002 `use` 只选择 Topic
 
@@ -211,13 +212,45 @@ $trailmap use billing-timeout
 
 ### TC-003 恢复聊天与新聊天
 
-场景 A：恢复的聊天中先后出现 login-failure 和 billing-timeout 标记。期望选择最后出现的 billing-timeout。
+场景 A：恢复的聊天中先后出现 login-failure 和 billing-timeout 标记。
 
-场景 B：新聊天没有标记且存在多个 Topic。期望只列出可选 Topic，并要求显式调用 `$trailmap use <topic-id>`，不猜测最近 Topic。
+调用：
 
-场景 C：新聊天没有标记且仅有一个 Topic。期望可自动选择该 Topic，并在回复首行打印标记。
+```text
+/trailmap
+```
 
-场景 D：新聊天没有标记且 workspace 中没有 Topic。期望只要求显式调用 `$trailmap new <topic-title>`，不创建空 Topic，不输出伪造的 Topic 标记。
+期望：选择最后出现的 billing-timeout。
+
+场景 B：新聊天没有标记且存在多个 Topic。
+
+调用：
+
+```text
+/trailmap
+```
+
+期望：只列出可选 Topic，并要求显式调用 `/trailmap use <topic-id>`，不猜测最近 Topic。
+
+场景 C：新聊天没有标记且仅有一个 Topic。
+
+调用：
+
+```text
+/trailmap
+```
+
+期望：自动选择该 Topic，并在回复首行打印标记。
+
+场景 D：新聊天没有标记且 workspace 中没有 Topic。
+
+调用：
+
+```text
+/trailmap
+```
+
+期望：只要求显式调用 `/trailmap new <topic-title>`，不创建空 Topic，不输出伪造的 Topic 标记。
 
 ### TC-004 `pending` 默认创建 sibling
 
@@ -285,7 +318,7 @@ $trailmap show B
 
 ### TC-009 `update --pause`
 
-前置状态：A 为 active。
+场景 A 前置状态：A 为 active。
 
 调用：
 
@@ -293,7 +326,17 @@ $trailmap show B
 $trailmap update A token expiry ruled out --pause
 ```
 
-期望：只追加 note `token expiry ruled out`，A 变为 `paused`，Topic.active 变为 `null`；不自动激活其他路径。对非 active 路径使用 `--pause` 时仅将目标改为 paused，不影响当前 active。
+期望：只追加 note `token expiry ruled out`，A 变为 `paused`，Topic.active 变为 `null`；不自动激活其他路径。
+
+场景 B 分别以 B.status 为 `pending`、`paused` 和 `closed` 建立三个独立的前置状态；每个状态中 A 仍为 active，Topic.active 仍为 `A`。
+
+每次调用：
+
+```text
+$trailmap update B non-active note --pause
+```
+
+期望：三次都拒绝，不追加 `non-active note`，不改变 B 的状态或关闭字段，A 仍为 `active`，Topic.active 仍为 `A`，文件的其他内容也不变。`update --pause` 仅接受当前 active 路径作为目标。
 
 ### TC-010 显式 reopen
 
@@ -384,20 +427,42 @@ $trailmap pending check network retry --worktree
 
 ### TC-018 同一 Topic 并发写入拒绝覆盖
 
-前置状态：两个写入者都已读取 `login-failure.json` 的同一版本。写入者一先成功执行 `$trailmap update A first note`，使该文件内容发生变化；写入者二仍基于旧版本准备执行：
+静态指令检查：
 
-```text
-$trailmap update B second note
+```powershell
+rg -n -i "hash|sha-256|reread|replace|revision" trailmap/SKILL.md
 ```
 
-期望：写入者二在落盘前重读 `login-failure.json`，检测到与其读取版本不一致后拒绝整次写入并要求用户重试。文件保留写入者一的结果，不出现 `second note`，不覆盖或合并并发变化；其他 Topic 文件也不改变。回复保持 Topic 标记，并只增加一行并发冲突说明。
+期望：命令退出码为 `0`，且命中的并发写入指令同时明确要求：初次读取 Topic 完成后立即计算完整文件字节的 SHA-256；替换文件前立即重读并计算 SHA-256；哈希不同时拒绝写入；不在 Topic JSON 或其他文件中储存 revision 字段。缺少任一要求即静态检查失败。
+
+实用双写入者场景：`login-failure.json` 初始字节的 SHA-256 为 H0。写入者一和写入者二分别读取该文件，并各自在读取完成后立即计算并保留 H0。写入者一先执行：
+
+```text
+/trailmap update A first note
+```
+
+写入者一在替换前立即重读并确认哈希仍为 H0，成功替换后文件哈希变为 H1。写入者二仍基于 H0 准备执行：
+
+```text
+/trailmap update B second note
+```
+
+期望：写入者二在替换前立即重读 `login-failure.json` 并计算出 H1，与它初次读取后保留的 H0 不同，因此拒绝整次写入并要求用户重试。文件保留写入者一的结果，不出现 `second note`，不覆盖或合并并发变化；其他 Topic 文件也不改变。回复保持 Topic 标记，并只增加一行并发冲突说明。Topic JSON 不新增 revision 或等价字段。
 
 ## 最终验收
 
 GREEN 实现完成后应同时满足：
 
-- 三个 RED 提示在显式 Trailmap 调用下只产生记录器行为，在无调用时不产生 Trailmap 行为。
-- `new`、`use`、`pending`、`list`、`show`、`update`、`resume`、`close`、`rename`、`map` 的变化场景全部通过。
+三个 RED 对应的 GREEN 记录器重跑必须显式使用：
+
+```text
+/trailmap pending check network retry --key B
+/trailmap resume B
+/trailmap update A token expiry has been ruled out. We changed auth.ts while testing.
+```
+
+- 上述三个调用分别满足 GREEN-001、GREEN-003 和 GREEN-004，只产生记录器行为；原 RED 提示不带 `$trailmap` 或 `/trailmap` 时满足 GREEN-005，不产生 Trailmap 行为。
+- `/trailmap new ...`、`/trailmap use ...`、`/trailmap pending ...`、`/trailmap`、`/trailmap list ...`、`/trailmap show ...`、`/trailmap update ...`、`/trailmap resume ...`、`/trailmap close ...`、`/trailmap rename ...`、`/trailmap map ...` 的变化场景全部通过。
 - 恢复聊天依靠最新 Topic 标记；新聊天通过 `use <topic-id>` 选择多个 Topic 中的一个。
 - 不存在全局 `active_topic_id`、`index.json`、删除行为、legacy 语法或路径执行行为。
 - 不同 Topic 的写入相互隔离，所有状态转换满足单 active 不变量。
