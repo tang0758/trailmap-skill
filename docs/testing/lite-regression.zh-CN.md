@@ -2,11 +2,11 @@
 
 本文档是 Trailmap Lite 的 RED/GREEN 场景契约。它先固定旧 Skill 的已知失败，再定义后续改写必须满足的行为。Trailmap Lite 只记录、切换和展示路径；除非用户显式调用 `$trailmap` 或 `/trailmap`，否则不得参与对话。
 
-本文示例使用 Codex 的 `$trailmap` 语法。Claude Code 将前缀替换为 `/trailmap`，其余行为相同。
+本文示例有意同时使用 Codex 的 `$trailmap` 与 Claude Code 的 `/trailmap` 形式；除调用前缀外，其余行为相同。
 
 ## RED 基线
 
-以下结果来自改写前的 `trailmap/SKILL.md`。重跑时应保留完整提示词，并判断回复是否越过“只记录”边界。
+以下结果来自改写前的基线提交 `f59a0ba` 中的 `trailmap/SKILL.md`。重跑时应保留完整提示词，并判断回复是否越过“只记录”边界。
 
 ### RED-001 pending 后继续排障
 
@@ -65,12 +65,12 @@ Path A update noted: token expiry ruled out; auth.ts changed during testing.
 运行：
 
 ```powershell
-rg -n "agent_run|worktree|codechange|clean|informed|active_topic_id|\.trailmap/marks" trailmap/SKILL.md
+git show f59a0ba:trailmap/SKILL.md | rg -n "agent_run|worktree|codechange|clean|informed|active_topic_id|\.trailmap/marks"
 ```
 
 #### 实际结果
 
-- 命令退出码为 `0`，共输出 `99` 个匹配行。
+- 基线提交 `f59a0ba` 的 `trailmap/SKILL.md` 共 `458` 行；命令退出码为 `0`，共输出 `99` 个匹配行。
 - 代表性证据包括：第 8、15 行的 `.trailmap/marks` 旧存储，第 24、454 行的 `active_topic_id` 全局选择状态，以及第 122、152、186 行的 `agent_run`、worktree 和 `codechange` 执行跟踪。
 - 第 3、125、138 行还命中 `clean`/`informed` 上下文模式；这些结果足以证明旧 Skill 保留了 Lite 必须移除的能力。
 
@@ -103,7 +103,7 @@ RED 期望：命令找到匹配项。任一匹配都证明旧 Skill 仍包含 Li
 - `pending` 标题逐字保存用户提供给 `<title>` 的文本，不改写、不翻译、不补充推断。
 - `update` 只记录用户提供的 note；不得从代码、Git、对话上下文或路径标题生成额外结论。
 - 显式且无歧义的命令立即写入。只有 AI 代拟 update 内容、输入有歧义或输入无效时才要求确认。
-- 每次写入在读取目标 Topic 后立即计算并仅在本次操作中保留文件完整字节的 SHA-256；在替换文件前立即重读并计算同样的哈希。两者不同时拒绝整次写入并要求用户重试，不储存 revision 字段。
+- 每次写入在读取目标 Topic 后立即计算并仅在本次操作中保留文件完整字节的 SHA-256；在替换文件前立即重读并计算同样的哈希。两者不同时拒绝整次写入并要求用户重试，不储存 revision 字段。该机制只对下述已测试交错提供尽力而为的冲突检测，不是原子 CAS 或锁；若两个写入者都在任一方替换前校验了相同哈希，则无法保证检测冲突。用户应避免同时写入同一 Topic，并在任何冲突后重试。
 - 不提供删除命令。`close` 只改变状态并保留路径及历史；任何命令都不得删除 Topic、路径或 update。
 
 ### 输出约束
@@ -425,7 +425,7 @@ $trailmap pending check network retry --worktree
 
 期望：每次回复首行是 Topic 标记，随后只给一行操作结果；只有 closed resume 命令提示、无效输入或并发冲突可增加一行必要说明。回复不得复述提示词背景、完整 JSON、Skill 规则、调试建议或“我将继续处理”的承诺。
 
-### TC-018 同一 Topic 并发写入拒绝覆盖
+### TC-018 同一 Topic 并发写入的尽力冲突检测
 
 静态指令检查：
 
@@ -433,7 +433,7 @@ $trailmap pending check network retry --worktree
 rg -n -i "hash|sha-256|reread|replace|revision" trailmap/SKILL.md
 ```
 
-期望：命令退出码为 `0`，且命中的并发写入指令同时明确要求：初次读取 Topic 完成后立即计算完整文件字节的 SHA-256；替换文件前立即重读并计算 SHA-256；哈希不同时拒绝写入；不在 Topic JSON 或其他文件中储存 revision 字段。缺少任一要求即静态检查失败。
+期望：命令退出码为 `0`，且命中的并发写入指令同时明确要求：初次读取 Topic 完成后立即计算完整文件字节的 SHA-256；替换文件前立即重读并计算 SHA-256；哈希不同时拒绝写入；不在 Topic JSON 或其他文件中储存 revision 字段；将此机制定义为对下述已测试交错的尽力而为检测，而不是原子 CAS、锁或对全部竞态的保证。缺少任一要求即静态检查失败。
 
 实用双写入者场景：`login-failure.json` 初始字节的 SHA-256 为 H0。写入者一和写入者二分别读取该文件，并各自在读取完成后立即计算并保留 H0。写入者一先执行：
 
@@ -448,6 +448,8 @@ rg -n -i "hash|sha-256|reread|replace|revision" trailmap/SKILL.md
 ```
 
 期望：写入者二在替换前立即重读 `login-failure.json` 并计算出 H1，与它初次读取后保留的 H0 不同，因此拒绝整次写入并要求用户重试。文件保留写入者一的结果，不出现 `second note`，不覆盖或合并并发变化；其他 Topic 文件也不改变。回复保持 Topic 标记，并只增加一行并发冲突说明。Topic JSON 不新增 revision 或等价字段。
+
+限制：如果两个写入者都在任一方执行替换前完成重读并确认哈希为 H0，两者随后仍可能依次替换文件，后写入者可能覆盖先写入者；SHA-256 重读不是原子 CAS 或锁，不能保证检测这种交错。用户应避免同时写入同一 Topic；检测到任何冲突时，应基于最新文件内容重试。
 
 ## 最终验收
 
@@ -466,5 +468,5 @@ GREEN 实现完成后应同时满足：
 - 恢复聊天依靠最新 Topic 标记；新聊天通过 `use <topic-id>` 选择多个 Topic 中的一个。
 - 不存在全局 `active_topic_id`、`index.json`、删除行为、legacy 语法或路径执行行为。
 - 不同 Topic 的写入相互隔离，所有状态转换满足单 active 不变量。
-- 同一 Topic 的并发变化会在写入前被检测并拒绝覆盖。
+- 同一 Topic 使用 SHA-256 重读提供尽力而为的冲突检测，并通过 TC-018 的具体交错；这不是原子 CAS 或锁，不保证检测所有竞态。用户应避免同时写入同一 Topic，并在冲突后重试。
 - Topic 已选定时，输出始终以 Topic 标记开头并保持简洁，且不包含排障或执行建议。
