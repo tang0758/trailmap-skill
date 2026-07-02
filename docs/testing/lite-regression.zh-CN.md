@@ -70,7 +70,7 @@ git show f59a0ba:trailmap/SKILL.md | rg -n "agent_run|worktree|codechange|clean|
 
 #### 实际结果
 
-- 基线提交 `f59a0ba` 的 `trailmap/SKILL.md` 共 `458` 行；命令退出码为 `0`，共输出 `99` 个匹配行。
+- 基线提交 `f59a0ba` 的 `trailmap/SKILL.md` 共 `641` 个物理行；PowerShell `Measure-Object -Line` 对相同内容返回 `458` 个非空行。上述扫描命令退出码为 `0`，共输出 `99` 个匹配行。
 - 代表性证据包括：第 8、15 行的 `.trailmap/marks` 旧存储，第 24、454 行的 `active_topic_id` 全局选择状态，以及第 122、152、186 行的 `agent_run`、worktree 和 `codechange` 执行跟踪。
 - 第 3、125、138 行还命中 `clean`/`informed` 上下文模式；这些结果足以证明旧 Skill 保留了 Lite 必须移除的能力。
 
