@@ -53,7 +53,7 @@ After selection, every response begins exactly:
 Topic: <id> | <title>
 ```
 
-`new <title> [--id <id>]` writes immediately. An explicit ID must match `^[a-z0-9]+(?:-[a-z0-9]+)*$`, be unused, and never overwrite a file. Without `--id`, lowercase the ASCII alphanumeric portions of the title, replace intervening runs with `-`, and trim `-`; reject a title that yields no slug. On collision, choose the first available `-2`, `-3`, and so on. Creation never changes any existing file.
+`new <title> [--id <id>]` writes immediately. An explicit ID must match `^[a-z0-9]+(?:-[a-z0-9]+)*$`, be unused, and never overwrite a file. Without `--id`, generate a short meaningful ASCII slug from the title, translating or transliterating non-ASCII titles when needed, and enforce the same pattern. If no clear slug can be generated, require an explicit ID. On collision, choose the first available `-2`, `-3`, and so on. Creation never changes any existing file.
 
 `use <id>` verifies and reads that Topic, emits its marker, and writes nothing. Selection lasts only through the marker in chat.
 
@@ -102,7 +102,7 @@ Creation rules:
 
 `show` displays the current active path's details. If no path is active, show a concise Topic summary. `show <key>` uses an exact key lookup and displays that path's exact title, note, updates, parent, status, and closure fields.
 
-`map` emits a Mermaid `graph LR` rooted at the Topic. Derive edges from `parent`; labels contain the original key, verbatim title, and human state. `map text` emits the equivalent plain-text tree. Neither form adds work advice.
+`map` emits a Mermaid `graph LR` rooted at the Topic. Derive edges from `parent`; labels contain the original key, verbatim title, and human state. Derive safe unique Mermaid node IDs from keys by replacing unsupported characters, while preserving original keys in labels. `map text` emits the equivalent plain-text tree. Neither form adds work advice.
 
 ## Write Commands
 

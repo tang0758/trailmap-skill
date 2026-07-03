@@ -79,7 +79,7 @@ Topic 文件示例：
 $trailmap new 登录失败排查 --id login-failure
 ```
 
-ID 是不可变的 ASCII slug，必须匹配 `^[a-z0-9]+(?:-[a-z0-9]+)*$`。省略 `--id` 时自动生成；冲突时依次增加 `-2`、`-3`。绝不覆盖已有 Topic。
+ID 是不可变的 ASCII slug，必须匹配 `^[a-z0-9]+(?:-[a-z0-9]+)*$`。省略 `--id` 时自动生成简短且有意义的 slug，必要时对非 ASCII 标题进行语义翻译或转写；冲突时依次增加 `-2`、`-3`。绝不覆盖已有 Topic。
 
 ### `use <topic-id>`
 
@@ -197,7 +197,7 @@ Topic ID、文件名、路径 key 和路径标题均不变。
 
 ### `map [text]`
 
-`map` 根据 parent 引用输出 Mermaid `graph LR`：
+`map` 根据 parent 引用输出 Mermaid `graph LR`。路径 key 含 Mermaid 不支持的字符时，只转换内部节点 ID，标签仍保留原 key：
 
 ```text
 $trailmap map

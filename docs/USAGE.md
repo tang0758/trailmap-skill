@@ -79,7 +79,7 @@ Create and select an empty Topic.
 $trailmap new Login failure investigation --id login-failure
 ```
 
-IDs are immutable ASCII slugs matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`. Without `--id`, Trailmap derives a slug and adds `-2`, `-3`, and so on when needed. It never overwrites an existing Topic.
+IDs are immutable ASCII slugs matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`. Without `--id`, Trailmap derives a short meaningful slug, translating or transliterating non-ASCII titles when needed, and adds `-2`, `-3`, and so on for collisions. It never overwrites an existing Topic.
 
 ### `use <topic-id>`
 
@@ -197,7 +197,7 @@ The Topic ID, filename, path keys, and path titles remain unchanged.
 
 ### `map [text]`
 
-`map` outputs a Mermaid `graph LR` generated from parent references:
+`map` outputs a Mermaid `graph LR` generated from parent references. Internal Mermaid node IDs are sanitized when a path key contains unsupported characters; labels retain the original key:
 
 ```text
 $trailmap map

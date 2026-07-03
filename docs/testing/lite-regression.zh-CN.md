@@ -198,6 +198,14 @@ $trailmap new Production login failure --id login-failure
 
 期望：创建 `.trailmap/topics/login-failure.json`，id/title 分别为 `login-failure` 和 `Production login failure`；回复以对应 Topic 标记开头。不创建 `index.json`。省略 `--id` 时，从 title 生成匹配 `^[a-z0-9]+(?:-[a-z0-9]+)*$` 的 ASCII slug；若基础 slug 已存在，使用首个可用的 `-2`、`-3` 等数字后缀保证 workspace 内唯一。无法从 title 生成合法 slug 时拒绝创建并要求显式 `--id`。显式 id 冲突时拒绝写入；无论自动生成还是显式提供，都不得覆盖现有文件，Topic id 创建后不得因 `rename` 或其他命令改变。
 
+非 ASCII 标题变化场景：
+
+```text
+$trailmap new 登录失败排查
+```
+
+期望：语义翻译或转写得到简短且有意义的 ASCII slug，例如 `login-failure`，并继续执行相同的格式、查重和不可覆盖规则；不得仅因标题不含 ASCII 字符而拒绝创建。只有无法生成清晰 slug 时才要求显式 `--id`。
+
 ### TC-002 `use` 只选择 Topic
 
 前置状态：`login-failure.json` 和 `billing-timeout.json` 均存在。
@@ -381,6 +389,10 @@ $trailmap map
 ```
 
 期望：输出当前 Topic 的 Mermaid `graph LR`。节点由 paths 和 parent 关系生成，label 包含原 key、逐字标题和状态；closed 节点显示关闭分类。不修改状态，不添加执行步骤。
+
+安全节点 ID 变化场景：Topic 同时包含 key `P-1` 和 `P.1`。
+
+期望：内部 Mermaid 节点 ID 替换不支持的字符并保持唯一，两个节点不得冲突；节点 label 仍分别显示原 key `P-1` 和 `P.1`。
 
 ### TC-014 `map text`
 
