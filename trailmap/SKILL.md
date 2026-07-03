@@ -1,641 +1,157 @@
 ---
 name: trailmap
-description: Track decision branches and exploration paths during AI coding agent conversations. Use when the user wants to mark a branching point, remember skipped alternatives, add a pending path without switching away from the current path, list paths, resume a previous path with clean or informed context, record path progress, close a path, rename the active topic, or generate a Mermaid/text map of explored and pending branches.
+description: Use when the user explicitly invokes Codex $trailmap or Claude Code /trailmap to remember alternatives, track pending or paused paths, resume a recorded path, or view a decision tree.
 ---
 
-# Trailmap
+# Trailmap Lite
 
-Manage decision branches for a workspace. Persist branch state under `.trailmap/marks/` by default. If an existing `.codex/marks/` directory is already present, continue using it for backward compatibility unless the user asks to migrate. Treat records as user-confirmed artifacts: generate drafts first, ask the user to confirm or edit, then write to disk.
+Trailmap is a recording-only command skill. It records, selects, pauses or resumes, closes, and displays paths only after an explicit `$trailmap ...` or `/trailmap ...` invocation.
 
-## Storage
+Do not solve the underlying problem, request logs, inspect business code or Git, generate plans or advice, orchestrate agents, monitor work, or proactively remind the user. Never run a recorded path. After the concise command response, stop; the normal agent handles later work outside Trailmap.
 
-Use workspace-local storage:
+## Storage Model
 
-```text
-.trailmap/marks/
-  index.json
-  <topic-id>.json
-```
+Store each Topic independently at `.trailmap/topics/<topic-id>.json`. Do not create `index.json`, persist a selected Topic globally, migrate older records, or modify another Topic file.
 
-`index.json` stores workspace state:
+Store only these Topic fields:
 
 ```json
 {
-  "active_topic_id": "login-timeout",
-  "recent_topic_ids": ["login-timeout"]
-}
-```
-
-Each topic file stores one independent problem or work line. A topic is not tied one-to-one to a chat; it may span chats, and one chat may contain multiple topics.
-
-## Data Model
-
-Use a flat path list with parent references. Do not create decision nodes, path node IDs, `path_key`, `children`, `parent_id`, `related_node_ids`, or `topic.status`.
-
-Topic:
-
-```json
-{
-  "id": "login-timeout",
-  "title": "登录超时排查",
+  "id": "login-failure",
+  "title": "Production login failure",
   "active": "A",
-  "source": "2026-06-17 当前会话：排查登录超时",
   "paths": []
 }
 ```
 
-Rules:
+Store every path with `key`, `title`, `status`, `parent`, `note`, and `updates`. Use `null` for an absent parent and `""` for an absent path note. Add `closed_as`, `closed_reason`, and `closed_at` only while the path is closed.
 
-- `active` is `null` or the `key` of the current active path.
-- If `active` is not `null`, exactly one path must have `status: "active"` and the same `key`.
-- If all paths are closed, set `active` to `null`.
-- Topic open/closed state is derived from paths: a topic is open when any path is not closed.
-- `source` is optional and human-readable; do not depend on platform conversation IDs.
+Each update contains `time` and `note`, plus optional `status_after`. Include update `closed_as` only when `status_after` is `closed`. Preserve supplied titles, notes, and reasons exactly. Use an ISO 8601 timestamp for `time` and `closed_at`.
 
-Path:
+Allowed statuses are `active`, `pending`, `paused`, and `closed`. Display a closed path by its human classification: `done`, `blocked`, or `discarded`.
 
-```json
-{
-  "key": "A",
-  "title": "检查 token 过期",
-  "status": "active",
-  "parent": null,
-  "created_from": {
-    "reason": "登录超时可能来自 token 或网络；A 是 token 方向。",
-    "confirmed": [
-      "登录后约 30 分钟超时",
-      "接口返回 401"
-    ],
-    "assumptions": [
-      "可能是 token 刷新失败",
-      "也可能是网络重试导致错误映射"
-    ],
-    "constraints": [
-      "不自动回滚代码"
-    ]
-  },
-  "goal": "验证是否由 token 过期或刷新失败导致",
-  "hypothesis": "401 可能来自 token 刷新失败",
-  "updates": []
-}
-```
+Invariants:
 
-Rules:
+- A Topic has at most one `active` path.
+- `topic.active` is `null` or equals the key of that sole active path.
+- Path keys are unique within a Topic and never change.
+- Topic IDs and filenames never change.
 
-- `key` is the only path identifier. It must be unique inside a topic.
-- Do not support path key rename in v1.
-- `parent` is `null` for root paths, or another path's `key` for child paths.
-- Do not store `children`; derive children with `paths where parent == key`.
-- Keep `title`, `goal`, and `hypothesis` separate in storage. General human summaries may merge them into a concise path description; confirmation drafts follow the command-specific fields below.
-- Keep `created_from` on each path. Paths created from the same branch may copy the same `created_from` with path-specific `reason` text.
+## Topic Selection
 
-Path statuses:
+For commands needing a current Topic, use the latest valid `Topic: <id> | <title>` marker in the current chat. A valid marker identifies an existing Topic file. Never infer a Topic from conversational context.
+
+When no marker exists:
+
+- Zero Topic files: ask for `new <topic-title>` and do not fabricate a marker.
+- One Topic file: select it.
+- Multiple Topic files: show only their IDs and titles and require `use <topic-id>`; do not guess.
+
+After selection, every response begins exactly:
 
 ```text
-active
-pending
-paused
-closed
+Topic: <id> | <title>
 ```
 
-Closed path fields:
+`new <title> [--id <id>]` writes immediately. An explicit ID must match `^[a-z0-9]+(?:-[a-z0-9]+)*$`, be unused, and never overwrite a file. Without `--id`, lowercase the ASCII alphanumeric portions of the title, replace intervening runs with `-`, and trim `-`; reject a title that yields no slug. On collision, choose the first available `-2`, `-3`, and so on. Creation never changes any existing file.
 
-```json
-{
-  "status": "closed",
-  "closed_as": "discarded",
-  "closed_reason": "验证后确认不是主因。",
-  "closed_at": "2026-06-17T10:30:00+08:00"
-}
-```
+`use <id>` verifies and reads that Topic, emits its marker, and writes nothing. Selection lasts only through the marker in chat.
 
-Rules:
+## Command Grammar
 
-- `closed_as` is required only when `status` is `closed`.
-- Valid `closed_as` values are `done`, `blocked`, and `discarded`.
-- If a path is reopened, remove top-level `closed_as`, `closed_reason`, and `closed_at`; closure history remains in `updates`.
-
-Agent run fields:
-
-```json
-{
-  "agent_run": {
-    "status": "running",
-    "mode": "subagent",
-    "context_mode": "clean",
-    "run_id": "optional-runtime-id",
-    "started_at": "2026-06-24T10:00:00+08:00",
-    "risk": "shared_workspace_code"
-  }
-}
-```
-
-Rules:
-
-- `agent_run` is optional and represents execution state, not path lifecycle state.
-- `agent_run.status` may be `running`, `reported`, `completed`, `failed`, `blocked`, or `cancelled`.
-- `agent_run.mode` is `subagent` in v1.
-- `agent_run.context_mode` is `clean` by default and may be `informed`.
-- `run_id` is optional; record it only when the runtime provides one.
-- Keep only the most recent `agent_run` at path top level; historical results belong in `updates`.
-- Do not mark a subagent path as a second `active` path. The topic still has at most one main active path.
-- In human views, append compact execution state such as `[pending, subagent running]`.
-
-Worktree execution fields:
-
-```json
-{
-  "agent_run": {
-    "status": "running",
-    "mode": "subagent",
-    "context_mode": "clean",
-    "worktree": {
-      "enabled": true,
-      "status": "ready",
-      "path": ".worktrees/trailmap/login-timeout/B",
-      "branch": "trailmap/login-timeout/B",
-      "base_ref": "HEAD",
-      "base_sha": "abc123",
-      "base_dirty": true,
-      "changed_files": [],
-      "diff_summary": ""
-    }
-  }
-}
-```
-
-Rules:
-
-- `agent_run.worktree` is present only for `--worktree` runs.
-- `agent_run.worktree.status` may be `creating`, `ready`, `failed`, `retained`, or `removed`.
-- `base_ref` defaults to `HEAD`; `--base <ref>` overrides it.
-- `base_sha` stores the resolved base commit.
-- `base_dirty` records whether the main workspace had uncommitted changes at worktree creation time.
-- `changed_files` and `diff_summary` summarize worktree changes relative to `base_sha`.
-- Do not store worktree metadata in `codechange`; copy only path-level summaries into update `codechange`.
-- Do not start a new subagent run for a path while `agent_run.status` is `running` or `reported`.
-
-Path update:
-
-```json
-{
-  "time": "2026-06-17T10:30:00+08:00",
-  "summary": "检查了 token TTL 和刷新逻辑。",
-  "conclusion": "暂未发现 token 刷新失败证据。",
-  "status_after": "paused",
-  "codechange": {
-    "changed": false,
-    "files": [],
-    "summary": "只读代码，无修改。"
-  }
-}
-```
-
-Rules:
-
-- `status_after` must be one of `active`, `pending`, `paused`, or `closed`.
-- If `status_after` is `closed`, include `closed_as` in the update.
-- After confirmation, append the update and sync the path's top-level status.
-- Use `codechange.changed/files/summary`; do not use `codechange.note`.
-
-## Confirmation Draft Presentation
-
-Build the complete structured draft internally, but show a concise human confirmation view by default.
-
-Show only identifiers and titles, decision-relevant goals/hypotheses/summaries/conclusions, resulting statuses or transitions, necessary default-choice explanations, relevant warnings, and one explicit confirmation question at the end.
-
-Hide `source`, `created_from`, `parent`, timestamps, repeated status-change lists, and the complete persistence structure unless a key/parent relationship is ambiguous, a closed path is reopened, code changes may contaminate a clean resume, or the user asks to expand details. Hidden fields remain in the internal draft and are written normally after confirmation.
-
-### Worktree Confirmation Drafts
-
-Before creating a worktree, show:
+Arguments after the explicit invocation must match one command exactly. No arguments means `list`.
 
 ```text
-path
-context mode
-base ref and base sha
-branch to create
-worktree path to create
-whether the main workspace has uncommitted changes
-whether .gitignore will be updated
-that uncommitted changes will not be copied
-that Trailmap will not merge, commit, stash, revert, apply, or copy code automatically
+new <topic-title> [--id <id>]
+use <topic-id>
+pending <title> [--key <key>] [--note <note>] [--child | --parent <key>]
+list [all]
+show [key]
+update <key> [note] [--pause]
+resume <key> [--note <note>]
+resume <key> --reopen --note <reason>
+close <key> <done|blocked|discarded> [reason]
+rename <topic-title>
+map [text]
 ```
 
-Do not create the branch or worktree before explicit confirmation.
+Reject a `mark` prefix, natural-language branching forms, context-mode arguments, execution commands or flags, delete/remove requests, unknown commands, and unsupported options. Do not reinterpret or migrate them. Invalid input writes nothing.
 
-`.worktrees/` must be ignored before creating project-local worktrees. If `.worktrees/` is not ignored, include this exact change in the confirmation draft:
+Explicit, unambiguous write commands write immediately without confirmation. The sole draft exception is `update <key>` with neither a note nor `--pause`, as described below.
+
+## Creating Paths
+
+For `pending`, store `<title>` verbatim and store a path-level note only when `--note` is explicitly supplied. Never rewrite the title or generate a goal, hypothesis, explanation, or leave summary.
+
+Check an explicit `--key` for uniqueness. Otherwise choose the shortest clear unused key, preferring `A`, `B`, `C` for roots and `<parent>1`, `<parent>2` for children. Once assigned, a key is immutable.
+
+Creation rules:
+
+- Empty Topic: the first path is a root, becomes `active`, and sets `topic.active`.
+- Nonempty Topic with no active path: create a root `pending` path unless `--parent <key>` names an existing parent.
+- Active path and no placement option: create a `pending` sibling with `parent` equal to the active path's parent; leave the active path unchanged.
+- `--child`: create a `pending` child of the current active path; reject when there is no active path.
+- `--parent <key>`: create a `pending` child of that exact existing path.
+- `--child` and `--parent` are mutually exclusive.
+
+## Read Commands
+
+`list` shows every path in the current Topic, compactly grouped by state, with key, verbatim title, and human state. No arguments is identical.
+
+`list all` shows Topic summaries only: ID, title, active key, and path counts. It does not change selection.
+
+`show` displays the current active path's details. If no path is active, show a concise Topic summary. `show <key>` uses an exact key lookup and displays that path's exact title, note, updates, parent, status, and closure fields.
+
+`map` emits a Mermaid `graph LR` rooted at the Topic. Derive edges from `parent`; labels contain the original key, verbatim title, and human state. `map text` emits the equivalent plain-text tree. Neither form adds work advice.
+
+## Write Commands
+
+### `update`
+
+`update <key> <note>` appends one update containing the exact supplied note and current time. It does not change status or infer any other field.
+
+With no note and no `--pause`, compress only the current chat into one short note draft. Do not inspect code or Git and do not infer status. Show the draft and ask for explicit Trailmap confirmation; write nothing until that confirmation.
+
+`--pause` is accepted only when the exact target is the current active path. Append the note with `status_after: "paused"` if supplied, set the path to `paused`, and set `topic.active` to `null`. With no note, append no update. Reject `--pause` for pending, paused, closed, or non-current paths without changing anything.
+
+### `resume`
+
+Only pending or paused paths can be resumed normally. Pause the old active path, activate the target, and set `topic.active` to the target key. Generate no summary or update. If `--note` is supplied, append it exactly to the old active path only; reject that option when there is no old active path to receive it.
+
+For a closed target without `--reopen`, write nothing. Display its classification and reason, then this exact guidance with the real key substituted:
 
 ```text
-+ .worktrees/
+resume <key> --reopen --note "<重开原因>"
 ```
 
-After confirmation, Trailmap may create `.gitignore` if missing or append only `.worktrees/` if present. Do not reorder or reformat `.gitignore`.
+Reopening requires a nonempty `--note`. Pause the old active path, activate the target, and set `topic.active` to the target key. Ensure the prior top-level closure fact remains in an update with `status_after: "closed"` and its `closed_as`; retain an existing matching closing update or add one from the closure fields. Then remove top-level closure fields and append the exact reopen note as a new update with `status_after: "active"`. Do not generate any other context.
 
-Trailmap does not automatically merge, cherry-pick, apply patches, copy files, commit, stash, revert, or switch the main workspace branch.
+### `close`
 
-When a worktree subagent reports, keep the worktree by default. Set `agent_run.worktree.status` to `retained`. The first worktree version does not implement a cleanup command and does not remove worktrees automatically.
+Require exactly one classification: `done`, `blocked`, or `discarded`. Store the supplied reason verbatim; when omitted, store and display `未填写关闭原因` without inference. Append a closing update with the same timestamp and reason, `status_after: "closed"`, and `closed_as`. Set the path status and top-level closure fields. If it was active, set `topic.active` to `null`; never activate another path.
 
-## Commands
+### `rename`
 
-Arguments after explicit skill invocation are direct subcommands. Claude Code uses `/trailmap <subcommand>`; Codex uses `$trailmap <subcommand>`. No arguments creates a branch.
+Change only the current Topic's title to the verbatim supplied title, and use the new title in the response marker. Do not change its ID, filename, path keys, path titles, or any other Topic.
 
-For backward compatibility, ignore one optional leading `mark` before parsing. Accept legacy and natural-language forms, but do not recommend them.
+## Write Safety
 
-Subagent flags:
+For every existing-Topic write:
 
-- `--subagent` requests subagent exploration for newly created non-main-active paths.
-- `--subagent <key>` or `--subagent <key1,key2>` selects specific newly created path keys for subagent exploration.
-- `--allow-shared-code` means the user accepts the shared workspace code risk. It skips the separate risk prompt, not the Trailmap write-confirmation draft.
-- `--informed` uses informed context for subagent exploration. Without it, subagent context is `clean`.
-- `--worktree` requests isolated Git worktree execution for selected subagent paths.
-- `--base <ref>` sets the Git ref used to create the worktree; default is current `HEAD`.
-- `--worktree` and `--allow-shared-code` are mutually exclusive.
-- `--worktree` may be combined with `--informed`.
-- Do not support `--no-worktree`; shared workspace is already the default.
+1. Read and parse the complete JSON; immediately hash the complete file bytes with SHA-256 and retain that hash only for this operation.
+2. Find paths by exact key, snapshot every path status, and modify only the target plus an explicitly required old active path and Topic fields.
+3. Serialize the complete object, parse it again, and verify all invariants and the intended status changes. Reject unexpected sibling or parent changes.
+4. Immediately before replacement, reread the complete file bytes and compute SHA-256 again. If the hash differs, reject the entire write and instruct the user to retry from the latest file.
+5. Replace only the selected Topic file, then reread and verify the serialized result, closure fields, last closing update, status snapshot, and single-active invariant.
 
-### No subcommand
+For `new`, recheck that the destination is absent immediately before a no-overwrite creation; reject a collision.
 
-Create a branch.
+Never store a revision field. SHA-256 reread is best-effort conflict detection, not atomic compare-and-swap or locking. It cannot detect the race where both writers verify before either replacement. Advise users to avoid simultaneous writes to the same Topic and retry after any conflict.
 
-If no active topic exists, draft a new topic and root paths. Root paths have `parent: null`; one path becomes `active`, and the rest become `pending`.
+Never modify business code, Git state, or unrelated Topic files.
 
-If an active topic and active path exist, create child paths under the current active path:
+## Output Discipline
 
-- Keep the current active path as a path record.
-- Draft a leave-summary update for the current active path.
-- Set the current active path to `paused` after confirmation.
-- Create new child paths with `parent` equal to the previous active path's `key`.
-- Set one child path to `active`; set the others to `pending`.
-- Set `topic.active` to the new active child path key.
+After a Topic is selected, the marker is always first. A successful write normally has exactly one result line after it. A successful `resume` keeps that line compact while also showing the target title, its note, and up to three most recent updates; add no advice.
 
-This is for "the current path has split into child directions" scenarios.
-
-Path key rules:
-
-- Let AI choose short keys by default, usually `A/B/C` for roots or `A1/A2` for children.
-- Allow explicit keys such as `P1/P2`.
-- Check uniqueness within the topic.
-- Never overwrite an existing key.
-
-Before writing, show the topic `id` and title; each new path's key, status, title, goal, and hypothesis; any decision-relevant leave summary; and a short explanation of the default active-path selection.
-
-When new non-main-active paths are created, prompt whether to start subagent exploration for zero, one, or multiple candidate paths unless `--subagent` already selects them. Include a shared workspace code risk warning unless `--allow-shared-code` is present. Selected paths keep their normal lifecycle status and receive `agent_run.status: "running"` after confirmation.
-
-### `pending <idea>`
-
-Add a pending sibling path without switching work context.
-
-Use this when the user is working on one path and temporarily thinks of another possibility that should be remembered for later, while the current `topic.active` must remain unchanged.
-
-Behavior:
-
-- Require an active topic and active path.
-- Create one new path with `parent` equal to the current active path's `parent`.
-- Set the new path status to `pending`.
-- Keep the current active path status as `active`.
-- Keep `topic.active` unchanged.
-- Do not draft a leave-summary for the current active path.
-- Do not create child paths; use no subcommand for child branching.
-
-Accept natural language equivalents such as:
-
-```text
-pending 可能是缓存写入顺序导致，先记下来
-pending 检查网络重试，先不要切走
-pending 服务端限流，继续当前 A
-```
-
-Before writing, show the new pending path's key, title, goal, and hypothesis, plus one sentence confirming that the current active path remains unchanged.
-
-For `pending <idea> --subagent`, the new sibling path remains `pending` and receives `agent_run.status: "running"` after confirmation. Include a shared workspace code risk warning unless `--allow-shared-code` is present.
-
-For `pending <idea> --subagent --worktree`, also show the complete worktree startup draft before writing: context mode, base ref and base sha, branch to create, worktree path to create, dirty main-workspace status, whether `.gitignore` will be updated, and the worktree safety notes.
-
-### `list`
-
-Show a cross-topic dashboard for the workspace.
-
-For each topic, group paths by:
-
-```text
-active
-pending
-paused
-closed
-```
-
-For active, pending, and paused paths, show only `key`, `title`, and compact codechange warning when useful.
-
-For closed paths, show `key`, `title`, `closed_as`, and `closed_reason`. Do not expand full `updates` in list output.
-
-For paths with `agent_run`, append compact execution state such as `[pending, subagent running]` or `[paused, subagent reported]`.
-
-For worktree runs, `list` shows compact worktree state only, for example `[pending, subagent running, worktree]`.
-
-### `show [key]`
-
-Show details for the active topic only.
-
-Default:
-
-- topic title and active path
-- active path description, merging title/goal/hypothesis for humans
-- recent active path updates
-- pending and paused paths
-- closed paths with closing reason
-
-Also support:
-
-```text
-show <key>
-```
-
-Show that path in the active topic, including `created_from`, merged path description, complete `updates`, codechange details, latest `agent_run` fields, subagent handoff/report summary when available, and closure fields if closed.
-
-For worktree runs, `show <key>` expands worktree path, branch, base ref, base sha, base dirty, changed files, and diff summary.
-
-Do not support `show <topic_id>` in v1.
-
-### `update <key>`
-
-Generate a structured update draft for the path:
-
-```text
-time
-summary
-conclusion
-status_after
-closed_as, only when status_after=closed
-codechange.changed
-codechange.files
-codechange.summary
-```
-
-Use git/workspace context to infer changed files when possible, but do not require it. After confirmation, append the update to `updates` and set the path status to `status_after`.
-
-Before writing, show the path key, summary, conclusion, and `status_after`. If `status_after` is `closed`, also show `closed_as`. Show changed files and the code-change summary only when code changed.
-
-If `status_after` is `closed`, set top-level `closed_as`, `closed_reason`, and `closed_at`. If `status_after` is not `closed`, ensure top-level closure fields are absent.
-
-If the user's natural language implies closing, invalidating, completing, or blocking a path but does not provide `closed_as`, draft the interpretation and require the user to choose `done`, `blocked`, or `discarded`. Do not write a closed update until the closure class is explicitly confirmed.
-
-### `subagent <key>`
-
-Start subagent exploration for an existing path in the active topic.
-
-Validation:
-
-- Require an active topic.
-- Require the target path to exist in the active topic.
-- Reject the current main active path.
-- Reject closed paths.
-- Reject paths whose `agent_run.status` is already `running` or `reported`.
-- If `agent_run.status` is `reported`, explain that the previous subagent report must be accepted, rejected, completed, cancelled, or otherwise resolved before starting another run.
-- Reject commands that combine `--worktree` and `--allow-shared-code`.
-
-Before writing, show a concise startup draft with the path key/title/status, context mode, planned `agent_run.status`, and shared workspace code risk. `--allow-shared-code` skips only the separate risk question; it does not skip the write-confirmation draft.
-
-If the subagent tool is unavailable, do not fail the path operation. Write `agent_run.status: "blocked"` with a concise reason after confirmation.
-
-For `--worktree`:
-
-- Resolve `--base <ref>` or current `HEAD` before creating the worktree.
-- If the base ref does not resolve, write `agent_run.status: "blocked"` and `agent_run.worktree.status: "failed"` after confirmation; do not fall back to `HEAD`.
-- Create one worktree and one branch per selected path.
-- Do not copy uncommitted main-workspace changes into the worktree.
-- Record `base_dirty: true` when the main workspace has uncommitted changes.
-- If branch creation, directory creation, Git worktree creation, or subagent startup fails, write `agent_run.status: "blocked"` and `agent_run.worktree.status: "failed"` for that path; it does not start the subagent and does not fall back to shared workspace.
-- After a worktree creation failure, show retry options: fix the underlying issue and retry with `--worktree`, or explicitly start a separate shared-workspace run without `--worktree`.
-- For multi-path `--subagent <key1,key2> --worktree`, create and record each selected path independently. Single-path failure does not roll back successful paths; successful paths keep `agent_run.status: "running"` and `agent_run.worktree.status: "ready"`, while failed paths record `blocked` and `failed`.
-
-Default worktree path:
-
-```text
-.worktrees/trailmap/<topic-id>/<path-key>/
-```
-
-Default branch:
-
-```text
-trailmap/<topic-id>/<path-key>
-```
-
-If the directory exists and is non-empty, or the branch already exists, append the same unique suffix to both. Do not reuse non-empty directories or existing branches.
-
-### `resume <key> clean|informed`
-
-Switch active work path inside the active topic. `clean` and `informed` are required unless the user clearly states the mode in natural language.
-
-Before switching:
-
-1. Identify the current active path.
-2. Draft a leave-summary update for the current active path.
-3. Default its `status_after` to `paused`.
-4. Include codechange summary and warnings.
-5. Ask for confirmation.
-6. After confirmation, write the leave-summary, set old path status, set target path `active`, and set `topic.active` to the target key.
-
-The confirmation view shows the current path's leave summary, the target path, the selected `clean` or `informed` mode, and the resulting status transition. Preserve relevant code-change warnings, especially when workspace changes may contaminate a `clean` resume.
-
-If target path is `closed`, warn that it is closed and ask for explicit reopen confirmation. If confirmed, append a reopen update, set the target path to `active`, and remove top-level closure fields.
-
-If the target path has `agent_run.status: "running"`, include a warning that the path is currently being explored by a subagent and resuming it in the main session may duplicate work or mix context. Do not block the resume.
-
-If a resumed path has `agent_run.worktree.status: "retained"` with changed files or diff summary, warn that those code changes are not merged into the current workspace and `resume clean` will not apply them.
-
-For cross-topic resume, support:
-
-```text
-resume <topic_id> <key> clean
-resume <topic_id> <key> informed
-```
-
-This updates `index.active_topic_id` and the target topic's `active`.
-
-For cross-topic resume, the previous active topic's previous active path still follows the normal leave-summary flow and becomes `paused`; do not only switch `index.active_topic_id`.
-
-### Resume Context Modes
-
-`clean` includes only:
-
-- target path `created_from`
-- target path description, merging title/goal/hypothesis for humans
-- target path's own updates
-- constraints from `created_from`
-- warnings about recorded or current code changes
-
-Do not include detailed context from sibling paths.
-
-`informed` includes everything from `clean`, plus summarized conclusions from sibling, parent, or previously explored paths. Clearly label this material as "other-path context" to avoid contaminating the target path.
-
-Never auto-stash, revert, commit, or otherwise change git state. If code changes are recorded, warn and provide a checklist only.
-
-### Subagent Context Modes
-
-Subagent context defaults to `clean`.
-
-`clean` includes the topic title, target path `created_from`, target path description, target path updates, minimal current active path identity, shared workspace code risk, and required report schema. It does not include detailed reasoning from sibling paths.
-
-`--informed` adds summarized sibling, parent, current-active, or previously explored path conclusions. Clearly label this material as "other-path context".
-
-Clean resume may include the target path's own worktree artifact summary, but not unconfirmed full handoff reasoning.
-
-### Subagent Reports
-
-Subagents must return:
-
-```text
-path_key
-summary
-conclusion
-status_after
-closed_as, only when status_after=closed
-codechange.changed
-codechange.files
-codechange.summary
-handoff
-```
-
-For worktree runs, the report must also include:
-
-```text
-worktree.path
-worktree.branch
-worktree.base_ref
-worktree.base_sha
-worktree.changed_files
-worktree.diff_summary
-```
-
-For worktree runs, derive `codechange.files` from the worktree diff against `agent_run.worktree.base_sha`, not from the main workspace.
-
-If the worktree diff cannot be read, use:
-
-```json
-{
-  "changed": true,
-  "files": [],
-  "summary": "Worktree diff unavailable; inspect worktree manually."
-}
-```
-
-Store structured worktree details in `agent_run.worktree`; copy only the path-level summary into update `codechange`.
-
-Missing required report fields must not be converted into a normal `update <key>` draft. Ask the subagent or user to provide the missing fields, or mark the run as `blocked` or `failed` with a concise reason after confirmation.
-
-When a subagent returns, set `agent_run.status` to `reported` and show a normal `update <key>` draft. The user must confirm before writing the update, changing the path status, setting closure fields, or changing `agent_run.status` to `completed`.
-
-If the user rejects the update draft, do not write the update, do not change code, and keep `agent_run.status` as `reported`.
-
-Subagents may recommend `status_after: closed` and `closed_as`, but they may not directly close a path.
-
-### `close <key>`
-
-Close a path after confirmation. Require one of:
-
-```text
-done
-blocked
-discarded
-```
-
-Draft and confirm:
-
-```text
-key
-closed_as
-closed_reason
-final summary
-codechange summary if relevant
-```
-
-After confirmation:
-
-- Append a closing update with `status_after: "closed"` and `closed_as`.
-- Set the path `status` to `closed`.
-- Set top-level `closed_as`, `closed_reason`, and `closed_at`.
-- If the closed path was the active path, set `topic.active` to `null`.
-
-Use the resume subcommand to activate another path after closing.
-
-### `rename <title>`
-
-Rename only the active topic. Before writing, show the old topic title and proposed new title. Confirm before writing. Do not rename path keys or path titles in v1.
-
-### `map [text]`
-
-Output a Mermaid `graph LR` for the active topic by default. Build the tree from `paths[].parent`.
-
-```text
-map
-```
-
-Use Mermaid `graph LR` only. Use `root` for the topic node, and one node per path. Derive Mermaid node ids from path keys; if a key contains characters Mermaid cannot use as an id, replace them with `_`. Node labels must show the original `key`, title, and status; for closed paths show `closed: closed_as`. When a path has `agent_run`, append compact execution state to the label, for example `B Network retry pending / subagent running`. Do not show full updates.
-
-For worktree runs, `map` shows compact worktree state only, for example `pending / subagent running / worktree`.
-
-```text
-map text
-```
-
-Output a plain text tree only, using the same fields.
-
-## JSON Write Safety
-
-When modifying topic JSON, do not patch repeated fields such as `status`, `updates`, `closed_as`, or `closed_reason` using loose textual context.
-
-Preferred write order:
-
-1. Parse JSON into an object.
-2. Locate the target path by exact `paths[].key`.
-3. Snapshot statuses for all paths before the write.
-4. Modify only the intended path object and any explicitly required topic fields.
-5. Serialize JSON back.
-6. Verify invariants after writing.
-
-If using a manual textual patch, the patch context must include the target path's unique `"key"` and `"title"` in the same hunk. Do not patch a bare `"status"` line, bare `"updates"` array, or bare closure field when multiple paths contain the same field names.
-
-After every write, verify:
-
-- `topic.active` is `null` or exactly one path has `status: "active"` with that key.
-- The intended path key has the intended status.
-- No unintended sibling or parent path changed status.
-- If a path is closed, it has `closed_as`, `closed_reason`, `closed_at`, and its last update has `status_after: "closed"`.
-
-For `update <key>`, `close <key>`, and subagent report writes, compare the pre-write status snapshot with the post-write status snapshot. Only the intended path, the previous active path during `resume`, and explicitly documented newly created paths may change status. If any unexpected path changed, stop, diagnose the write, fix the JSON, and re-run verification before reporting success.
-
-When a natural-language update implies closure but does not name the closure class, draft the interpretation explicitly, for example `Interpreting this update as closing path A1 as discarded.` Require confirmation before writing.
-
-## Confirmation Rule
-
-Any operation that writes or changes state must first show a draft and wait for explicit user confirmation. Every write draft must end with one explicit confirmation question, such as `Confirm writing the above changes?`. Do not write any state before the user explicitly confirms.
-
-Write operations include:
-
-```text
-no subcommand
-pending
-update
-subagent
-resume
-close
-rename
-```
-
-Read-only operations do not require confirmation:
-
-```text
-list
-show
-map
-map text
-```
-
-## Non-Goals
-
-Do not automatically roll back code, stash changes, commit changes, or create git branches unless the user explicitly confirms a `--worktree` draft. Even in worktree mode, do not automatically merge, cherry-pick, apply patches, copy files, commit, stash, revert, or switch the main workspace branch.
-
-Do not directly push to Notion in v1. Mermaid and text output should be easy to copy into Notion or other documentation tools.
-
-Do not record every chat turn. Record decision points and path-level updates only.
+Errors, closed-target responses, draft confirmation, and conflict responses may add one necessary instruction. Read commands may expand only as needed for their specified data. Never dump JSON, explain implementation in the response, suggest next work, or promise to execute a path.

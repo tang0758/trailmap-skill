@@ -1,4 +1,7 @@
 interface:
-  display_name: "Trailmap"
-  short_description: "Track branch paths and resume context"
+  display_name: "Trailmap Lite"
+  short_description: "Remember paths without executing them"
   default_prompt: "Use $trailmap pending to record this alternative without changing the active path."
+
+policy:
+  allow_implicit_invocation: false
