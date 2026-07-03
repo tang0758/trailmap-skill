@@ -1,21 +1,27 @@
 # Changelog
 
-## v0.1.0 - 2026-06-24
+## lite-v0.1.0 - 2026-07-03
 
-Initial stable release of Trailmap.
+First release of the recording-only Trailmap Lite line.
 
 ### Added
 
-- Trailmap skill entrypoint for Codex (`$trailmap`) and Claude Code (`/trailmap`).
-- Topic and path model for tracking active, pending, paused, and closed exploration paths.
-- `pending` command for adding a sibling path without changing the active path.
-- `resume` command with `clean` and `informed` context modes.
-- `close` command with `done`, `blocked`, and `discarded` closure classifications.
-- `map` output as Mermaid `graph LR`, plus plain text tree output with `map text`.
-- Bilingual product documentation and detailed usage guides.
+- Explicit `$trailmap` and `/trailmap` invocation with implicit Codex activation disabled.
+- Independent Topic files under `.trailmap/topics/` and visible Chat-to-Topic markers.
+- Minimal Topic, Path, and Update records.
+- `new`, `use`, `pending`, `list`, `show`, `update`, `resume`, `close`, `rename`, and `map` commands.
+- Mermaid `graph LR` and plain-text tree output.
+- Bilingual product and usage documentation.
+- RED/GREEN regression scenarios focused on recording-only behavior.
 
-### Notes
+### Removed
 
-- Trailmap stores state in workspace-local files under `.trailmap/marks/`.
-- Write operations require explicit user confirmation before state is written.
-- Trailmap records code-change reminders but does not automatically stash, revert, commit, switch branches, or isolate working-tree files.
+- Subagent execution and worktree orchestration.
+- Clean/informed context loading and generated resume context.
+- Automatic Git inspection and codechange records.
+- Legacy command parsing, old storage compatibility, and migration behavior.
+- Confirmation prompts for explicit and unambiguous write commands.
+
+### Compatibility
+
+Trailmap Lite intentionally starts a separate data model and release line. It does not read or migrate records created by the execution-oriented 0.x line.

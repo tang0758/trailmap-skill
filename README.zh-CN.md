@@ -1,191 +1,109 @@
-# Trailmap
+# Trailmap Lite
 
-> 面向人机协同解决问题的有状态决策路径图。
+> 一个只负责记录路径的 Agent Skill：提醒你有哪些方向，但不接管路径上的实际工作。
 
-[English](README.md) · [详细使用说明](docs/USAGE.zh-CN.md)
+[English](README.md) | [详细使用说明](docs/USAGE.zh-CN.md)
 
-Trailmap 是面向 Codex、Claude Code 等 AI coding agent 的 Agent Skill。它把对话中出现的备选方案、已经探索的路径和暂时搁置的方向组织成一张可持续更新的路线图。
+## 为什么需要 Trailmap
 
-## Trailmap 解决什么问题
+使用 AI 处理问题时，经常会同时出现多个可能方向，但一次只能深入一条。未选择的方案容易被聊天内容淹没，已经尝试过的路径也可能被遗忘，之后想回到旧方向时还要重新整理上下文。
 
-排查问题或做技术决策时，很少只有一条直线：
-
-- AI 同时提出 A、B 两种可能性
-- 你沿着 A 深入，又发现 A1 和 A2
-- B 仍然可能成立，却逐渐从当前上下文中消失
-- 做过几轮实验后，人和 AI 都说不清哪些方向试过、为什么停下
-
-聊天记录保留了文字，却没有明确表达当前工作主线和分支状态。Trailmap 将决策结构单独记录下来，让正在探索的路径、待回溯方案和已经关闭的结论始终可见。
-
-## 30 秒理解 Trailmap
-
-先记录两个可能原因：
+Trailmap Lite 在工作区内保存一张简单路线图：
 
 ```text
-$trailmap 登录失败可能来自 token 刷新或网络重试，先检查 token 刷新。
+A  检查 token 刷新       paused
+B  检查网络重试          active
+C  检查缓存写入顺序      pending
 ```
 
-Trailmap 会先生成简洁确认草案：
+它只记录这张图，不负责排查、实现、读取业务代码、检查 Git、创建 Agent，也不会建议路径应该怎么做。Trailmap 命令结束后，普通 Agent 再继续处理实际问题。
+
+## 核心模型
+
+- **Topic**：一个问题或工作主题下的路径集合。
+- **Path**：一个具体方向，使用 `A`、`B`、`A1` 等简短且不可变的 key 标识。
+- 一个 Topic 最多只有一条 `active` 路径。
+- 其他路径状态为 `pending`、`paused` 或 `closed`。
+- closed 路径在人类视图中显示为 `done`、`blocked` 或 `discarded`。
+
+每个 Topic 独立存储：
 
 ```text
-A  Token 刷新失败  [active]
-B  网络重试失败    [pending]
+.trailmap/topics/<topic-id>.json
 ```
 
-探索 A 时临时想到另一个可能性，可以先记在旁边，不切换当前路径：
+工作区不保存全局活跃 Topic。每次 Trailmap 输出都以可见标记开头：
 
 ```text
-$trailmap pending 可能是 token 缓存没有更新，先记录，保持当前路径。
+Topic: login-failure | 登录失败排查
 ```
 
-记录 A 的结果，再以相对独立的上下文回到 B：
+恢复原 Chat 后可从该标记恢复 Topic；新 Chat 可用 `use <topic-id>` 选择已有 Topic。
+
+## 典型流程
 
 ```text
-$trailmap update A
-$trailmap resume B clean
+$trailmap new 登录失败排查 --id login-failure
+$trailmap pending 检查 token 刷新
+$trailmap pending 检查网络重试
+$trailmap resume B
+$trailmap update B 重试耗尽无法复现登录失败
+$trailmap close B discarded 不是 401 的来源
+$trailmap map
 ```
 
-任何状态写入前，Trailmap 都会展示草案并等待明确确认。
+Codex 使用 `$trailmap`，Claude Code 使用 `/trailmap`，两者子命令完全一致。
 
-## 核心能力
-
-- **不丢备选方案。** 在选择主线前记录 A、B、C，后续随时查看。
-- **不中断当前工作。** 在 active 路径旁边原地新增 sibling pending 路径，当前 active 完全不变。
-- **形成决策树。** 当前方向再次分叉时，在它下面创建 child paths。
-- **并行探索备选路径。** 为 pending 路径启动 subagent 探索，同时保持主会话 active path 不变。
-- **隔离高风险 subagent 改动。** 使用 `--worktree` 让 subagent path 在独立 Git worktree 中运行。
-- **记录路径结果。** 保存摘要、结论、状态和代码改动提醒。
-- **有边界地回溯。** 用 `clean` 限制其他路径影响，或用 `informed` 带入相关路径结论。
-- **看清探索全貌。** 查看跨主题列表，或把当前主题输出为 Mermaid `graph LR` 和文本树。
-
-## Trailmap 如何组织路径
-
-Trailmap 在主题下面用树组织路径：
+## 命令
 
 ```text
-主题：登录失败排查
-
-A  Token 刷新                  [paused]
-├─ A1  刷新竞态                [closed: discarded]
-└─ A2  Refresh Token 已过期    [active]
-B  网络重试                    [pending]
+new <topic-title> [--id <id>]
+use <topic-id>
+pending <title> [--key <key>] [--note <note>] [--child | --parent <key>]
+list [all]
+show [key]
+update <key> [note] [--pause]
+resume <key> [--note <note>]
+resume <key> --reopen --note <reason>
+close <key> <done|blocked|discarded> [reason]
+rename <topic-title>
+map [text]
 ```
 
-每个主题最多只有一条 active path。路径状态只有四种：
-
-```text
-active   当前正在探索
-pending  已记录，尚未开始
-paused   探索过，暂时放下
-closed   已结束或不再继续
-```
-
-closed 路径还会记录关闭分类：
-
-```text
-done       已完成、已证实或已解决
-blocked    当前条件下无法继续
-discarded  已排除、无效或决定放弃
-```
-
-`done`、`blocked`、`discarded` 是 `closed_as` 的值，不是额外的路径状态。
+不带子命令调用 Trailmap，等同于 `list`。
 
 ## 安装
 
-当前稳定版本：`v0.2.0`。如需最新 worktree 模式文档，可从 `main` 安装。
+Lite 版本线位于 `trailmap-lite` 分支。克隆仓库后，只需将 `trailmap/` 目录安装为 Agent Skill。
 
 ### Codex
 
-直接告诉 Codex：
-
-```text
-Install the trailmap skill from https://github.com/tang0758/trailmap-skill/tree/main/trailmap
-```
-
-也可以使用 Codex Skill 安装脚本：
-
 ```powershell
-python "$env:USERPROFILE\.codex\skills\.system\skill-installer\scripts\install-skill-from-github.py" --repo tang0758/trailmap-skill --path trailmap
-```
-
-安装后通过 `$trailmap` 调用。
-
-如果需要为 Codex 固定安装某个发布版本，可以手动 clone tag：
-
-```powershell
+git clone --branch trailmap-lite --depth 1 https://github.com/tang0758/trailmap-skill.git "$env:TEMP\trailmap-skill"
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.codex\skills" | Out-Null
-git clone --branch v0.2.0 --depth 1 https://github.com/tang0758/trailmap-skill.git "$env:TEMP\trailmap-skill"
 Copy-Item -Recurse -Force "$env:TEMP\trailmap-skill\trailmap" "$env:USERPROFILE\.codex\skills\trailmap"
 ```
 
+重启 Codex 后，通过 `$trailmap` 显式调用。
+
 ### Claude Code
 
-安装为个人 Skill：
-
 ```bash
+git clone --branch trailmap-lite --depth 1 https://github.com/tang0758/trailmap-skill.git /tmp/trailmap-skill
 mkdir -p ~/.claude/skills
-git clone https://github.com/tang0758/trailmap-skill.git /tmp/trailmap-skill
 cp -R /tmp/trailmap-skill/trailmap ~/.claude/skills/trailmap
 ```
 
-如果需要固定发布版本，在 `git clone` 命令中增加 `--branch v0.2.0 --depth 1`。
+如果只希望当前项目使用，可复制到 `.claude/skills/trailmap`。通过 `/trailmap` 调用。
 
-如果只希望在当前项目使用，将仓库中的 `trailmap/` 目录复制到 `.claude/skills/trailmap`。安装后通过 `/trailmap` 调用。
+发布 `lite-v0.1.0` 后，可将 `--branch trailmap-lite` 替换为 `--branch lite-v0.1.0`，固定安装该版本。
 
-如果没有立即识别 Skill，请重启对应 agent 会话。
+## 功能边界
 
-## 最小命令集
+Trailmap Lite 不支持路径执行、后台 Agent、代码隔离工作区、上下文加载模式、自动 Git 检查、旧数据迁移或删除命令。这些职责应由 Trailmap 之外的 Agent 或工具承担。
 
-Claude Code 使用 `/trailmap`，Codex 使用 `$trailmap`。以下示例采用 Codex 语法：
+完整状态转换、Topic 恢复、父子路径、重开、输出约束和并发限制见 [USAGE.zh-CN.md](docs/USAGE.zh-CN.md)。
 
-```text
-$trailmap                              创建主题、根路径或 child paths
-$trailmap pending <idea>               新增 sibling pending，保持 active 不变
-$trailmap list                         查看 workspace 中所有主题和路径
-$trailmap show [key]                   查看活跃主题或某条路径
-$trailmap update <key>                 记录路径进展和结果
-$trailmap subagent <key>               为已有路径启动 subagent 探索
-$trailmap subagent <key> --worktree    在独立 worktree 中启动 subagent 探索
-$trailmap subagent <key> --worktree --base <ref>
-$trailmap ... --subagent B --allow-shared-code
-$trailmap resume <key> clean|informed  切换当前工作路径
-$trailmap close <key> done|blocked|discarded
-$trailmap rename <topic title>
-$trailmap map [text]                   输出 Mermaid 或文本树
-```
+## License
 
-child path、跨主题回溯、确认草案和完整命令行为请查看[详细使用说明](docs/USAGE.zh-CN.md)。
-
-## 安全边界
-
-Trailmap 在 workspace 中保存记录：
-
-```text
-.trailmap/marks/
-```
-
-写操作会先展示简洁草案，并且只在明确确认后落盘。Trailmap 只记录代码改动提醒，不会自动：
-
-- stash 或 revert 文件
-- commit 代码
-- 切换 Git 分支
-- 隔离不同路径对应的工作区改动
-
-`resume clean` 只控制对话上下文。工作区里已经存在的代码仍然可能影响回溯后的路径。
-
-subagent 探索可能和主会话 active path 在同一个共享工作区中运行。Trailmap 会提示共享代码风险；只有明确确认 worktree 模式后才会隔离文件。
-
-worktree 模式会在确认后创建本地 branch 和 worktree。Trailmap 只记录 path 和 branch，不会自动 merge、commit、清理或应用 worktree 改动。retained worktree 中的改动会保留在该 worktree 内，直到你自行检查或集成。
-
-## 当前限制
-
-- Trailmap 记录决策点和路径级进展，不保存每一轮聊天。
-- 它通过 parent key 表达树，不处理通用图关系。
-- 它可以输出 Mermaid 或文本，但不会直接写入 Notion。
-- 它会提示 Git 风险。除已确认的 worktree 创建外，不管理 Git 集成。
-
-## 文档
-
-- [详细使用说明](docs/USAGE.zh-CN.md)
-- [English product overview](README.md)
-- [Skill 指令](trailmap/SKILL.md)
+仓库暂未声明许可证。对外分发修改版本前应先补充许可证。
