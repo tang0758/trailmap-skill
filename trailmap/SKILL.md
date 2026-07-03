@@ -19,7 +19,7 @@ Store only these Topic fields:
 {
   "id": "login-failure",
   "title": "Production login failure",
-  "active": "A",
+  "active": null,
   "paths": []
 }
 ```
