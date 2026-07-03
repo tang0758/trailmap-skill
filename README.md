@@ -96,7 +96,7 @@ cp -R /tmp/trailmap-skill/trailmap ~/.claude/skills/trailmap
 
 For project-only installation, copy `trailmap/` to `.claude/skills/trailmap`. Invoke it with `/trailmap`.
 
-After `lite-v0.1.0` is published, replace `--branch trailmap-lite` with `--branch lite-v0.1.0` to pin that release.
+To pin the first Lite release, replace `--branch trailmap-lite` with `--branch lite-v0.1.0`.
 
 ## Scope
 

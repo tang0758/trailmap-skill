@@ -1,6 +1,6 @@
 # Changelog
 
-## lite-v0.1.0 - 2026-07-03
+## lite-v0.1.0 - 2026-07-04
 
 First release of the recording-only Trailmap Lite line.
 

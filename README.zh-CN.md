@@ -96,7 +96,7 @@ cp -R /tmp/trailmap-skill/trailmap ~/.claude/skills/trailmap
 
 如果只希望当前项目使用，可复制到 `.claude/skills/trailmap`。通过 `/trailmap` 调用。
 
-发布 `lite-v0.1.0` 后，可将 `--branch trailmap-lite` 替换为 `--branch lite-v0.1.0`，固定安装该版本。
+如需固定首个 Lite 版本，可将 `--branch trailmap-lite` 替换为 `--branch lite-v0.1.0`。
 
 ## 功能边界
 
