@@ -23,6 +23,7 @@ Topic: <id> | <title>
 - 有多个 Topic 且没有标记：只列出 ID 和标题，要求执行 `use <id>`。
 - 恢复旧 Chat：从最新标记恢复选择。
 - 新 Chat：用 `use <id>` 选择其他 Chat 创建的 Topic。
+- `list all` 是只读例外：没有选择 Topic 时也可以列摘要，不生成 Topic 标记，也不改变选择。
 
 Topic 选择不写入全局状态，因此不同 Chat 可以使用不同 Topic，互不切换对方的选择。
 
@@ -144,7 +145,7 @@ $trailmap update A 已排除 token 过期
 
 Trailmap 按原文保存，不检查文件或 Git。
 
-如果没有提供 note，Trailmap 可以把当前对话压缩为一条简短草案，但必须先展示草案并等待确认后才能写入。
+如果没有提供 note，Trailmap 可以把当前对话压缩为一条简短草案，但本次不写入。它会显示完整的 `$trailmap update <key> <draft>` 或 `/trailmap update <key> <draft>` 命令；用户显式执行该命令即表示确认，单独回复“确认”不会写入。
 
 暂停当前 active：
 
@@ -170,7 +171,7 @@ $trailmap resume B --note "A 正在等待日志"
 如果目标已经关闭，普通 `resume B` 不写入，只显示关闭分类、原因和：
 
 ```text
-resume B --reopen --note "<重开原因>"
+resume B --reopen --note "<reason>"
 ```
 
 重开必须提供非空原因。旧 active 变为 paused，B 变为 active，旧关闭事实保留在 B 的 update 历史中，B 顶层关闭字段被清除。
@@ -183,7 +184,7 @@ $trailmap close B blocked 等待供应商日志
 $trailmap close C discarded 假设已被排除
 ```
 
-关闭会追加历史 update 并保留路径。没有填写原因时，记录 `未填写关闭原因`，不由 AI 推断。关闭 active 后 `topic.active` 变为 `null`，不会自动切换下一条路径。
+关闭会追加历史 update 并保留路径。没有填写原因时，记录 `未填写关闭原因`，不由 AI 推断。关闭 active 后 `topic.active` 变为 `null`，不会自动切换下一条路径。目标已经 closed 时拒绝重复关闭，原关闭记录保持不变。
 
 ### `rename <topic-title>`
 
@@ -197,7 +198,7 @@ Topic ID、文件名、路径 key 和路径标题均不变。
 
 ### `map [text]`
 
-`map` 根据 parent 引用输出 Mermaid `graph LR`。路径 key 含 Mermaid 不支持的字符时，只转换内部节点 ID，标签仍保留原 key：
+`map` 根据 parent 引用输出 Mermaid `graph LR`。路径 key 含 Mermaid 不支持的字符时，只转换内部节点 ID，标签仍保留原 key；标签中的引号、反斜杠和换行会被转义：
 
 ```text
 $trailmap map
@@ -222,7 +223,7 @@ graph LR
 
 ## 6. 确认规则
 
-明确且合法的命令直接写入。只有用户未提供 note、需要 AI 为 `update <key>` 代拟内容，或者输入确有歧义时才需要确认。无效命令不会写入。
+明确且合法的命令直接写入。用户未提供 note 时，AI 只代拟内容并显示完整 Trailmap 命令，本次不写入；用户显式执行该命令后才持久化。无效或有歧义的命令不会写入。
 
 ## 7. 并发限制
 

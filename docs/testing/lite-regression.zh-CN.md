@@ -102,7 +102,7 @@ RED 期望：命令找到匹配项。任一匹配都证明旧 Skill 仍包含 Li
 - 路径 key 在 Topic 内唯一且不可变。状态只允许 `active`、`pending`、`paused`、`closed`。
 - `pending` 标题逐字保存用户提供给 `<title>` 的文本，不改写、不翻译、不补充推断。
 - `update` 只记录用户提供的 note；不得从代码、Git、对话上下文或路径标题生成额外结论。
-- 显式且无歧义的命令立即写入。只有 AI 代拟 update 内容、输入有歧义或输入无效时才要求确认。
+- 显式且无歧义的命令立即写入。`update <key>` 未提供 note 时，AI 只展示一条代拟 note 和包含该 note 的完整 Trailmap `update` 命令；本次不写入，用户显式执行该完整命令即表示确认。
 - 每次写入在读取目标 Topic 后立即计算并仅在本次操作中保留文件完整字节的 SHA-256；在替换文件前立即重读并计算同样的哈希。两者不同时拒绝整次写入并要求用户重试，不储存 revision 字段。该机制只对下述已测试交错提供尽力而为的冲突检测，不是原子 CAS 或锁；若两个写入者都在任一方替换前校验了相同哈希，则无法保证检测冲突。用户应避免同时写入同一 Topic，并在任何冲突后重试。
 - 不提供删除命令。`close` 只改变状态并保留路径及历史；任何命令都不得删除 Topic、路径或 update。
 
@@ -179,6 +179,14 @@ $trailmap update A token expiry has been ruled out. We changed auth.ts while tes
 - 不检查 `auth.ts`，不运行 Git，不生成 `codechange`、文件列表、结论或额外摘要。
 - 路径状态不变。
 - 回复第一行为 `Topic: <id> | <title>`，并简短确认记录成功。
+
+未提供 note 的变化场景：
+
+```text
+$trailmap update A
+```
+
+期望：AI 只根据当前 Chat 生成一条简短 note 草案，并显示包含该草案的完整 `$trailmap update A <draft>` 命令；本次不写入。只有用户再次显式执行该完整命令后才写入，不接受脱离 Trailmap 调用的裸 `确认` 作为持久化命令。
 
 ### GREEN-005 未调用时完全不参与
 
@@ -313,6 +321,10 @@ $trailmap list all
 
 期望：按 Topic 分组展示所有 Topic 的 id/title 和路径摘要。每组来自对应独立文件；不改变当前 Topic 选择，不创建索引。
 
+无 Topic 标记变化场景：新 Chat 中直接调用 `$trailmap list all`。
+
+期望：不要求先执行 `use`，不生成或猜测 Topic 标记，直接列出 Topic 摘要且保持未选择状态。
+
 ### TC-008 `show` 与 `show <key>`
 
 调用：
@@ -370,6 +382,10 @@ $trailmap close D discarded hypothesis disproved
 
 期望：目标路径状态均为 `closed`，`closed_as` 分别为 `done`、`blocked`、`discarded`，reason 逐字保存。关闭 active 路径时 Topic.active 变为 `null`，不自动选择替代路径；关闭非 active 路径不影响当前 active。缺少或使用其他分类时拒绝写入。
 
+重复关闭变化场景：目标路径已经是 `closed`。
+
+期望：拒绝命令并显示已有关闭分类和原因，不追加 update，不覆盖 `closed_as`、`closed_reason` 或 `closed_at`。
+
 ### TC-012 `rename`
 
 调用：
@@ -393,6 +409,10 @@ $trailmap map
 安全节点 ID 变化场景：Topic 同时包含 key `P-1` 和 `P.1`。
 
 期望：内部 Mermaid 节点 ID 替换不支持的字符并保持唯一，两个节点不得冲突；节点 label 仍分别显示原 key `P-1` 和 `P.1`。
+
+安全 label 变化场景：路径标题包含双引号、反斜杠或换行。
+
+期望：`graph LR` 中的 quoted label 正确转义双引号和反斜杠，并将实际换行转换为 Mermaid 可安全显示的文本；不得破坏节点或边语法。存储中的原始标题不变。
 
 ### TC-014 `map text`
 

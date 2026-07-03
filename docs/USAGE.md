@@ -23,6 +23,7 @@ The current chat uses its latest valid Topic marker.
 - Multiple Topics and no marker: Trailmap lists IDs and titles and requires `use <id>`.
 - Resumed chat: the latest marker restores the selection.
 - New chat: use `use <id>` to select a Topic created elsewhere.
+- `list all` is the read-only exception: it can list Topic summaries without selecting one or printing a Topic marker.
 
 Selection is not stored globally, so separate chats can use different Topics without changing one another.
 
@@ -144,7 +145,7 @@ $trailmap update A Token expiry has been ruled out
 
 Trailmap stores the note exactly and does not inspect files or Git.
 
-If no note is supplied, Trailmap may compress the current chat into one short draft. It must show that draft and wait for confirmation before writing.
+If no note is supplied, Trailmap may compress the current chat into one short draft. It writes nothing and displays a complete `$trailmap update <key> <draft>` or `/trailmap update <key> <draft>` command. Explicitly invoking that command confirms the note; replying with a bare confirmation does not write it.
 
 Pause only the current active path:
 
@@ -170,7 +171,7 @@ The response shows the target title, note, and up to three recent updates, then 
 For a closed target, plain `resume B` performs no write and prints the classification, reason, and:
 
 ```text
-resume B --reopen --note "<reopen reason>"
+resume B --reopen --note "<reason>"
 ```
 
 Reopening requires a nonempty reason. The old active path becomes paused, B becomes active, the old closure remains in B's update history, and B's top-level closure fields are removed.
@@ -183,7 +184,7 @@ $trailmap close B blocked Waiting for vendor logs
 $trailmap close C discarded Hypothesis disproved
 ```
 
-Closing appends a historical update and preserves the path. When no reason is supplied, Trailmap records `未填写关闭原因`; it does not infer one. Closing the active path sets `topic.active` to `null` and never activates another path automatically.
+Closing appends a historical update and preserves the path. When no reason is supplied, Trailmap records `未填写关闭原因`; it does not infer one. Closing the active path sets `topic.active` to `null` and never activates another path automatically. Closing an already closed path is rejected without changing its existing closure record.
 
 ### `rename <topic-title>`
 
@@ -197,7 +198,7 @@ The Topic ID, filename, path keys, and path titles remain unchanged.
 
 ### `map [text]`
 
-`map` outputs a Mermaid `graph LR` generated from parent references. Internal Mermaid node IDs are sanitized when a path key contains unsupported characters; labels retain the original key:
+`map` outputs a Mermaid `graph LR` generated from parent references. Internal Mermaid node IDs are sanitized when a path key contains unsupported characters; labels retain the original key. Quotes, backslashes, and line breaks in labels are escaped:
 
 ```text
 $trailmap map
@@ -222,7 +223,7 @@ graph LR
 
 ## 6. Confirmation Rules
 
-Explicit, valid commands write immediately. Confirmation is required only when Trailmap generates an `update <key>` note because the user supplied no note, or when input is genuinely ambiguous. Invalid commands never write.
+Explicit, valid commands write immediately. When Trailmap generates an `update <key>` draft because the user supplied no note, it writes nothing and asks the user to invoke the displayed complete Trailmap command. Invalid or ambiguous input never writes.
 
 ## 7. Concurrency
 

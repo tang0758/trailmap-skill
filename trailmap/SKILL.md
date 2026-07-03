@@ -77,7 +77,7 @@ map [text]
 
 Reject a `mark` prefix, natural-language branching forms, context-mode arguments, execution commands or flags, delete/remove requests, unknown commands, and unsupported options. For delete/remove, only suggest the applicable `close <key> discarded [reason]` form. Do not reinterpret or migrate invalid input; write nothing.
 
-Explicit, unambiguous write commands write immediately without confirmation. The sole draft exception is `update <key>` with neither a note nor `--pause`, as described below.
+Explicit, unambiguous write commands write immediately. The sole draft exception is `update <key>` with neither a note nor `--pause`, as described below.
 
 ## Creating Paths
 
@@ -98,11 +98,11 @@ Creation rules:
 
 `list` shows every path in the current Topic, compactly grouped by state, with key, verbatim title, and human state. No arguments is identical.
 
-`list all` shows Topic summaries only: ID, title, active key, and path counts. It does not change selection.
+`list all` shows Topic summaries only: ID, title, active key, and path counts. It does not change selection. It may run without a selected Topic; in that case output no Topic marker and remain unselected.
 
 `show` displays the current active path's details. If no path is active, show a concise Topic summary. `show <key>` uses an exact key lookup and displays that path's exact title, note, updates, parent, status, and closure fields.
 
-`map` emits a Mermaid `graph LR` rooted at the Topic. Derive edges from `parent`; labels contain the original key, verbatim title, and human state. Derive safe unique Mermaid node IDs from keys by replacing unsupported characters, while preserving original keys in labels. `map text` emits the equivalent plain-text tree. Neither form adds work advice.
+`map` emits a Mermaid `graph LR` rooted at the Topic. Derive edges from `parent`; labels contain the original key, verbatim title, and human state. Derive safe unique Mermaid node IDs from keys by replacing unsupported characters, while preserving original keys in labels. Quote labels and escape double quotes, backslashes, and actual line breaks so stored text cannot break Mermaid syntax. `map text` emits the equivalent plain-text tree. Neither form adds work advice.
 
 ## Write Commands
 
@@ -110,7 +110,7 @@ Creation rules:
 
 `update <key> <note>` appends one update containing the exact supplied note and current time. It does not change status or infer any other field.
 
-With no note and no `--pause`, compress only the current chat into one short note draft. Do not inspect code or Git and do not infer status. Show the draft and ask for explicit Trailmap confirmation; write nothing until that confirmation.
+With no note and no `--pause`, compress only the current chat into one short note draft. Do not inspect code or Git and do not infer status. Write nothing. Show the draft plus a complete platform-appropriate `$trailmap update <key> <draft>` or `/trailmap update <key> <draft>` command. The user confirms by explicitly invoking that complete command; a bare confirmation is not a persistence command.
 
 `--pause` is accepted only when the exact target is the current active path. Append the note with `status_after: "paused"` if supplied, set the path to `paused`, and set `topic.active` to `null`. With no note, append no update. Reject `--pause` for pending, paused, closed, or non-current paths without changing anything.
 
@@ -121,14 +121,14 @@ Only pending or paused paths can be resumed normally. Pause the old active path,
 For a closed target without `--reopen`, write nothing. Display its classification and reason, then this exact guidance with the real key substituted:
 
 ```text
-resume <key> --reopen --note "<重开原因>"
+resume <key> --reopen --note "<reason>"
 ```
 
 Reopening requires a nonempty `--note`. Pause the old active path, activate the target, and set `topic.active` to the target key. Ensure the prior top-level closure fact remains in an update with `status_after: "closed"` and its `closed_as`; retain an existing matching closing update or add one from the closure fields. Then remove top-level closure fields and append the exact reopen note as a new update with `status_after: "active"`. Do not generate any other context.
 
 ### `close`
 
-Require exactly one classification: `done`, `blocked`, or `discarded`. Store the supplied reason verbatim; when omitted, store and display `未填写关闭原因` without inference. Append a closing update with the same timestamp and reason, `status_after: "closed"`, and `closed_as`. Set the path status and top-level closure fields. If it was active, set `topic.active` to `null`; never activate another path.
+Require exactly one classification: `done`, `blocked`, or `discarded`. If the target is already closed, reject the command, show its existing classification and reason, and change nothing. Otherwise store the supplied reason verbatim; when omitted, store and display `未填写关闭原因` without inference. Append a closing update with the same timestamp and reason, `status_after: "closed"`, and `closed_as`. Set the path status and top-level closure fields. If it was active, set `topic.active` to `null`; never activate another path.
 
 ### `rename`
 
@@ -154,4 +154,4 @@ Never modify business code, Git state, or unrelated Topic files.
 
 After a Topic is selected, the marker is always first. A successful write normally has exactly one result line after it. A successful `resume` keeps that line compact while also showing the target title, its note, and up to three most recent updates; add no advice.
 
-Errors, closed-target responses, draft confirmation, and conflict responses may add one necessary instruction. Read commands may expand only as needed for their specified data. Never dump JSON, explain implementation in the response, suggest next work, or promise to execute a path.
+Errors, closed-target responses, draft commands, and conflict responses may add one necessary instruction. Read commands may expand only as needed for their specified data. Never dump JSON, explain implementation in the response, suggest next work, or promise to execute a path.
