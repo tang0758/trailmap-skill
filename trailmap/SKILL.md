@@ -75,7 +75,7 @@ rename <topic-title>
 map [text]
 ```
 
-Reject a `mark` prefix, natural-language branching forms, context-mode arguments, execution commands or flags, delete/remove requests, unknown commands, and unsupported options. Do not reinterpret or migrate them. Invalid input writes nothing.
+Reject a `mark` prefix, natural-language branching forms, context-mode arguments, execution commands or flags, delete/remove requests, unknown commands, and unsupported options. For delete/remove, only suggest the applicable `close <key> discarded [reason]` form. Do not reinterpret or migrate invalid input; write nothing.
 
 Explicit, unambiguous write commands write immediately without confirmation. The sole draft exception is `update <key>` with neither a note nor `--pause`, as described below.
 
