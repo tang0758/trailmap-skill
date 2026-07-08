@@ -60,6 +60,72 @@ Path A update noted: token expiry ruled out; auth.ts changed during testing.
 
 失败：回复没有 `Topic: <id> | <title>` 标记，也没有可验证的 Topic 持久化行为。
 
+### RED-004 明确列举多个路径却被拒绝
+
+前置状态：当前 Chat 已选中一个空 Topic。
+
+提示词：
+
+```text
+$trailmap 两个疑点，一个是：通电后tank_wave_out_gpio一直输出高电平。 另一个是：pwm驱动冲突
+```
+
+观察到的回复：
+
+```text
+这不是有效的 $trailmap 命令，未写入记录。
+
+请分成明确命令，例如先创建主题：
+
+$trailmap new 硬件疑点排查
+
+然后逐条记录路径：
+
+$trailmap pending 通电后tank_wave_out_gpio一直输出高电平
+$trailmap pending pwm驱动冲突
+```
+
+失败：用户已经显式调用 `$trailmap`，且文本明确列出两个待记录路径；空 Topic 下应能直接创建 A/B，而不是要求拆成两次 `pending`。
+
+### RED-005 零 Topic 输入 Topic 标题后仍丢失多路径输入
+
+前置状态：workspace 中没有任何 `.trailmap/topics/*.json`。
+
+调用一：
+
+```text
+$trailmap 两个疑点，一个是：通电后tank_wave_out_gpio一直输出高电平。 另一个是：pwm驱动冲突
+```
+
+观察到的回复：要求先执行 `$trailmap new <topic-title>`，本次未写入。
+
+调用二：
+
+```text
+处理翻盖失败问题
+```
+
+观察到的回复：
+
+```text
+未识别为 Trailmap 命令。
+```
+
+调用三：
+
+```text
+$trailmap list
+```
+
+观察到的回复：
+
+```text
+Topic: flip-cover-failure | 处理翻盖失败问题
+暂无路径。
+```
+
+失败：用户按提示输入 Topic 标题后，Trailmap 没有把这条标题回复作为 Topic 标题处理，也没有把上一条已经明确列出的两个路径记录进去。
+
 ### RED 静态证据
 
 运行：
@@ -101,8 +167,11 @@ RED 期望：命令找到匹配项。任一匹配都证明旧 Skill 仍包含 Li
 - 一个 Topic 最多一条 `active` 路径；Topic 的 `active` 字段必须与该路径 key 一致，无 active 路径时为 `null`。
 - 路径 key 在 Topic 内唯一且不可变。状态只允许 `active`、`pending`、`paused`、`closed`。
 - `pending` 标题逐字保存用户提供给 `<title>` 的文本，不改写、不翻译、不补充推断。
-- `update` 只记录用户提供的 note；不得从代码、Git、对话上下文或路径标题生成额外结论。
-- 显式且无歧义的命令立即写入。`update <key>` 未提供 note 时，AI 只展示一条代拟 note 和包含该 note 的完整 Trailmap `update` 命令；本次不写入，用户显式执行该完整命令即表示确认。
+- 显式调用后，若没有子命令但文本明确列出两个或多个待记录路径，Trailmap 可作为多路径快捷输入处理；只提取路径标题并记录，不生成问题分析。
+- `update` 只记录用户提供的 note；不得从代码、Git、对话上下文或路径标题生成额外结论。`update <note>` 默认写入当前 active 路径；`update <key> <note>` 只有在 `<key>` 精确匹配现有路径 key 时才作为显式 key 解析。
+- `close <classification> [reason]` 默认关闭当前 active 路径；`close <key> <classification> [reason]` 只有在 `<key>` 精确匹配现有路径 key 时才作为显式 key 解析。
+- `rename <path-title>` 默认修改当前 active 路径 title；`rename <key> <path-title>` 只有在 `<key>` 精确匹配现有路径 key 时才作为显式 key 解析。`rename` 不修改 Topic title。
+- 显式且无歧义的命令立即写入。`update <key>` 或无参数 `update` 未提供 note 时，AI 只展示一条代拟 note 和包含该 note 的完整 Trailmap `update` 命令；本次不写入，用户显式执行该完整命令即表示确认。
 - 每次写入在读取目标 Topic 后立即计算并仅在本次操作中保留文件完整字节的 SHA-256；在替换文件前立即重读并计算同样的哈希。两者不同时拒绝整次写入并要求用户重试，不储存 revision 字段。该机制只对下述已测试交错提供尽力而为的冲突检测，不是原子 CAS 或锁；若两个写入者都在任一方替换前校验了相同哈希，则无法保证检测冲突。用户应避免同时写入同一 Topic，并在任何冲突后重试。
 - 不提供删除命令。`close` 只改变状态并保留路径及历史；任何命令都不得删除 Topic、路径或 update。
 
@@ -165,7 +234,7 @@ resume B --reopen --note "<reason>"
 
 ### GREEN-004 update 只记录 supplied note
 
-前置状态：A 存在。
+前置状态：A 为 active，B 存在。
 
 调用：
 
@@ -180,6 +249,34 @@ $trailmap update A token expiry has been ruled out. We changed auth.ts while tes
 - 路径状态不变。
 - 回复第一行为 `Topic: <id> | <title>`，并简短确认记录成功。
 
+省略 key 的变化场景：
+
+```text
+$trailmap update 公司为政府做咨询
+```
+
+期望：
+
+- 因为 `公司为政府做咨询` 不是现有路径 key，整段文本作为 note 精确写入当前 active 路径 A。
+- B 和其他路径不变。
+- 不要求用户补 key，不把 `公司为政府做咨询` 当作 key，也不生成额外摘要。
+
+显式 key 的变化场景：
+
+```text
+$trailmap update B 公司为政府做咨询
+```
+
+期望：因为 `B` 精确匹配现有路径 key，note `公司为政府做咨询` 精确写入 B；当前 active A 不变。
+
+无 active 的变化场景：Topic.active 为 `null`，没有 active 路径。
+
+```text
+$trailmap update 公司为政府做咨询
+```
+
+期望：拒绝写入并要求提供显式路径 key；不创建 update，不猜测目标路径。
+
 未提供 note 的变化场景：
 
 ```text
@@ -187,6 +284,14 @@ $trailmap update A
 ```
 
 期望：AI 只根据当前 Chat 生成一条简短 note 草案，并显示包含该草案的完整 `$trailmap update A <draft>` 命令；本次不写入。只有用户再次显式执行该完整命令后才写入，不接受脱离 Trailmap 调用的裸 `确认` 作为持久化命令。
+
+未提供 key 和 note 的变化场景：
+
+```text
+$trailmap update
+```
+
+期望：若有当前 active 路径 A，AI 只根据当前 Chat 生成一条简短 note 草案，并显示包含 resolved key 的完整 `$trailmap update A <draft>` 命令；本次不写入。
 
 ### GREEN-005 未调用时完全不参与
 
@@ -204,7 +309,7 @@ $trailmap update A
 $trailmap new Production login failure --id login-failure
 ```
 
-期望：创建 `.trailmap/topics/login-failure.json`，id/title 分别为 `login-failure` 和 `Production login failure`；回复以对应 Topic 标记开头。不创建 `index.json`。省略 `--id` 时，从 title 生成匹配 `^[a-z0-9]+(?:-[a-z0-9]+)*$` 的 ASCII slug；若基础 slug 已存在，使用首个可用的 `-2`、`-3` 等数字后缀保证 workspace 内唯一。无法从 title 生成合法 slug 时拒绝创建并要求显式 `--id`。显式 id 冲突时拒绝写入；无论自动生成还是显式提供，都不得覆盖现有文件，Topic id 创建后不得因 `rename` 或其他命令改变。
+期望：创建 `.trailmap/topics/login-failure.json`，id/title 分别为 `login-failure` 和 `Production login failure`；回复以对应 Topic 标记开头。不创建 `index.json`。省略 `--id` 时，从 title 生成匹配 `^[a-z0-9]+(?:-[a-z0-9]+)*$` 的 ASCII slug；若基础 slug 已存在，使用首个可用的 `-2`、`-3` 等数字后缀保证 workspace 内唯一。无法从 title 生成合法 slug 时拒绝创建并要求显式 `--id`。显式 id 冲突时拒绝写入；无论自动生成还是显式提供，都不得覆盖现有文件，Topic id 和 Topic title 创建后不得因 `rename` 或其他 path 命令改变。
 
 非 ASCII 标题变化场景：
 
@@ -311,6 +416,22 @@ $trailmap list
 
 期望：两者等价，只列当前 Topic 的路径，显示 key、逐字标题和状态；closed 路径显示 `done`、`blocked` 或 `discarded` 分类。不修改文件，不给执行建议。
 
+排序变化场景：Topic `study-ontology | 学习本体论` 中包含根路径 A/B/C/D，A1.parent 为 A，B1.parent 为 B，且 A 为 active。
+
+期望输出顺序是树顺序，不是状态分组：
+
+```text
+Topic: study-ontology | 学习本体论
+active: A palantir公司情况
+pending: A1 公司的发展史
+pending: B ontology
+pending: B1 ontology的哲学意义
+pending: C 补充知识图谱相关知识
+pending: D 数据建模和SQL
+```
+
+不得输出为先列所有 root 再列 child，也不得按 `active`、`pending`、`paused`、`closed` 状态桶重新分组。兄弟路径按自然 key 顺序排列；父路径必须紧邻出现在其子树之前。
+
 ### TC-007 `list all`
 
 调用：
@@ -348,6 +469,14 @@ $trailmap update A token expiry ruled out --pause
 
 期望：只追加 note `token expiry ruled out`，A 变为 `paused`，Topic.active 变为 `null`；不自动激活其他路径。
 
+省略 key 的等价变化场景：A 为 active。
+
+```text
+$trailmap update token expiry ruled out --pause
+```
+
+期望：因为 `token` 不是现有路径 key，整段 note `token expiry ruled out` 写入当前 active A，A 变为 `paused`，Topic.active 变为 `null`。
+
 场景 B 分别以 B.status 为 `pending`、`paused` 和 `closed` 建立三个独立的前置状态；每个状态中 A 仍为 active，Topic.active 仍为 `A`。
 
 每次调用：
@@ -372,7 +501,7 @@ $trailmap resume B --reopen --note new evidence suggests cache ordering
 
 ### TC-011 `close` 三种分类
 
-分别调用：
+显式 key 分别调用：
 
 ```text
 $trailmap close B done fix verified
@@ -382,19 +511,56 @@ $trailmap close D discarded hypothesis disproved
 
 期望：目标路径状态均为 `closed`，`closed_as` 分别为 `done`、`blocked`、`discarded`，reason 逐字保存。关闭 active 路径时 Topic.active 变为 `null`，不自动选择替代路径；关闭非 active 路径不影响当前 active。缺少或使用其他分类时拒绝写入。
 
+省略 key 的变化场景：A 为当前 active。
+
+```text
+$trailmap close done 已经了解完公司
+```
+
+期望：
+
+- 因为第一个参数 `done` 是关闭分类，目标解析为当前 active 路径 A。
+- A.status 变为 `closed`，A.closed_as 为 `done`，A.closed_reason 精确等于 `已经了解完公司`。
+- Topic.active 变为 `null`。
+- 不要求用户补 key，不自动激活其他路径。
+
+无 active 的变化场景：Topic.active 为 `null`，没有 active 路径。
+
+```text
+$trailmap close done 已经了解完公司
+```
+
+期望：拒绝写入并要求提供显式路径 key；不创建 closing update，不猜测目标路径。
+
 重复关闭变化场景：目标路径已经是 `closed`。
 
 期望：拒绝命令并显示已有关闭分类和原因，不追加 update，不覆盖 `closed_as`、`closed_reason` 或 `closed_at`。
 
 ### TC-012 `rename`
 
-调用：
+显式 key 调用：
+
+```text
+$trailmap rename A Login incident follow-up
+```
+
+期望：只把路径 A.title 改为 `Login incident follow-up`；Topic title、Topic id、文件名、路径 key/status/parent/note/updates/关闭字段和其他 Topic 均不变；回复首行仍使用原 Topic 标题。
+
+省略 key 的变化场景：A 为当前 active。
 
 ```text
 $trailmap rename Login incident follow-up
 ```
 
-期望：只修改当前 Topic.title，Topic id、文件名、路径 key/title/status 和其他 Topic 均不变；回复首行立即使用新标题。
+期望：只把当前 active 路径 A.title 改为 `Login incident follow-up`；不修改 Topic title，不要求用户补 key。
+
+无 active 的变化场景：Topic.active 为 `null`，没有 active 路径。
+
+```text
+$trailmap rename Login incident follow-up
+```
+
+期望：拒绝写入并要求提供显式路径 key；不修改 Topic title 或任何 path title。
 
 ### TC-013 `map`
 
@@ -483,6 +649,65 @@ rg -n -i "hash|sha-256|reread|replace|revision" trailmap/SKILL.md
 
 限制：如果两个写入者都在任一方执行替换前完成重读并确认哈希为 H0，两者随后仍可能依次替换文件，后写入者可能覆盖先写入者；SHA-256 重读不是原子 CAS 或锁，不能保证检测这种交错。用户应避免同时写入同一 Topic；检测到任何冲突时，应基于最新文件内容重试。
 
+### TC-019 显式多路径快捷输入
+
+前置状态：当前 Chat 已选中 Topic `hardware-debug | 硬件疑点排查`，该 Topic 为空。
+
+调用：
+
+```text
+$trailmap 两个疑点，一个是：通电后tank_wave_out_gpio一直输出高电平。 另一个是：pwm驱动冲突
+```
+
+期望：
+
+- 创建 A 和 B 两条根路径。
+- A.title 精确等于 `通电后tank_wave_out_gpio一直输出高电平`，A.status 为 `active`。
+- B.title 精确等于 `pwm驱动冲突`，B.status 为 `pending`。
+- Topic.active 等于 `A`。
+- 回复第一行为 `Topic: hardware-debug | 硬件疑点排查`，随后简短说明 A/B 已记录。
+- 不要求用户拆成两次 `pending`，不分析 GPIO 或 PWM，不索要日志或代码。
+
+非空 Topic 变化场景：A 已经 active，用户调用同类快捷输入列出 B/C。
+
+期望：B/C 均按重复 `pending <title>` 的规则创建为 pending 路径，A 仍为 active；不得把第一个新标题切成 active。
+
+歧义变化场景：文本没有明确分隔出两个或多个路径。
+
+期望：不写入，要求改用显式 `pending <title>` 命令；不得猜测标题。
+
+### TC-020 零 Topic 后输入 Topic 标题时回放多路径输入
+
+前置状态：workspace 中没有任何 Topic。
+
+调用一：
+
+```text
+$trailmap 两个疑点，一个是：通电后tank_wave_out_gpio一直输出高电平。 另一个是：pwm驱动冲突
+```
+
+期望：不写入，不输出伪 Topic 标记；提示直接输入 Topic 标题，也可使用完整 `new <topic-title>` 命令，并保留这条多路径输入在当前 Chat 中可由下一条 Topic 标题回复回放。
+
+调用二：
+
+```text
+处理翻盖失败问题
+```
+
+期望：
+
+- 创建 Topic `flip-cover-failure | 处理翻盖失败问题`。
+- 立即把调用一中的两个标题记录到该 Topic。
+- A.title 精确等于 `通电后tank_wave_out_gpio一直输出高电平`，A.status 为 `active`。
+- B.title 精确等于 `pwm驱动冲突`，B.status 为 `pending`。
+- Topic.active 等于 `A`。
+- 回复第一行为 `Topic: flip-cover-failure | 处理翻盖失败问题`，并说明已创建 Topic 且已记录 A/B。
+- 后续 `$trailmap list` 能看到 A/B；不需要用户重复输入两个 `pending`。
+
+显式命令变化场景：调用二也可写为 `$trailmap new 处理翻盖失败问题` 或 `/trailmap new 处理翻盖失败问题`，期望相同。
+
+限制：只有最新 assistant 回复是 Trailmap 因“零 Topic + 有效多路径快捷输入”而发出的 Topic 标题提示，并且当前用户回复是紧接着的纯文本标题时，才接受无 `$trailmap` 或 `/trailmap` 的回复。该例外只消费一条回复。其他旧输入、歧义输入、普通对话、多行回复、command-like 回复或已成功写入的多路径输入不得被回放；这些情况要求显式 `new <topic-title>` 命令。
+
 ## 最终验收
 
 GREEN 实现完成后应同时满足：
@@ -496,7 +721,7 @@ GREEN 实现完成后应同时满足：
 ```
 
 - 上述三个调用分别满足 GREEN-001、GREEN-003 和 GREEN-004，只产生记录器行为；原 RED 提示不带 `$trailmap` 或 `/trailmap` 时满足 GREEN-005，不产生 Trailmap 行为。
-- `/trailmap new ...`、`/trailmap use ...`、`/trailmap pending ...`、`/trailmap`、`/trailmap list ...`、`/trailmap show ...`、`/trailmap update ...`、`/trailmap resume ...`、`/trailmap close ...`、`/trailmap rename ...`、`/trailmap map ...` 的变化场景全部通过。
+- `/trailmap new ...`、`/trailmap use ...`、`/trailmap pending ...`、`/trailmap` 多路径快捷输入、`/trailmap list ...`、`/trailmap show ...`、`/trailmap update ...`、`/trailmap resume ...`、`/trailmap close ...`、`/trailmap rename ...`、`/trailmap map ...` 的变化场景全部通过。
 - 恢复聊天依靠最新 Topic 标记；新聊天通过 `use <topic-id>` 选择多个 Topic 中的一个。
 - 不存在全局 `active_topic_id`、`index.json`、删除行为、legacy 语法或路径执行行为。
 - 不同 Topic 的写入相互隔离，所有状态转换满足单 active 不变量。

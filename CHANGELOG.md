@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Multi-path shortcut input for explicit `$trailmap` or `/trailmap` calls that clearly list two or more paths to record.
+
 ## lite-v0.1.0 - 2026-07-04
 
 First release of the recording-only Trailmap Lite line.

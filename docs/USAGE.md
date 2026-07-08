@@ -2,11 +2,36 @@
 
 [中文](USAGE.zh-CN.md) | [Product overview](../README.md)
 
-## 1. Boundary
+Trailmap Lite does one thing: it records the paths that appear while you work with an agent, so you can remember, switch, and review them later. It does not analyze the work inside a path, inspect business code, or suggest debugging steps.
 
-Trailmap runs only when explicitly invoked as `$trailmap` in Codex or `/trailmap` in Claude Code. It records and displays paths; it does not work on the underlying problem.
+Use `$trailmap` in Codex and `/trailmap` in Claude Code. The examples below use `$trailmap`.
 
-While handling a Trailmap command, the agent must not inspect business code or Git, request diagnostic data, generate a solution plan, suggest next debugging steps, or continue executing a path. Once the command response is complete, normal agent behavior resumes.
+## 1. Core Model
+
+A chat usually maps to one Topic. A Topic contains multiple Paths. Each Path has a key, title, state, and notes.
+
+Common states:
+
+```text
+active   the current path; at most one per Topic
+pending  a path to revisit later
+paused   a paused path
+closed   a closed path, classified as done / blocked / discarded
+```
+
+Example:
+
+```text
+Topic: study-ontology | Study ontology
+active: A Palantir company background
+pending: A1 Company history
+pending: B ontology
+pending: B1 Philosophical meaning of ontology
+pending: C Add knowledge graph background
+pending: D Data modeling and SQL
+```
+
+`A`, `B`, and `C` are root paths. `A1` is a child of `A`; `B1` is a child of `B`.
 
 ## 2. Topic Selection
 
@@ -16,37 +41,325 @@ Every selected-Topic response starts with:
 Topic: <id> | <title>
 ```
 
-The current chat uses its latest valid Topic marker.
+Trailmap uses the latest valid Topic marker in the current chat to choose the current Topic.
 
-- No Topics: Trailmap asks for `new <title>`.
-- Exactly one Topic and no marker: Trailmap selects it.
-- Multiple Topics and no marker: Trailmap lists IDs and titles and requires `use <id>`.
-- Resumed chat: the latest marker restores the selection.
-- New chat: use `use <id>` to select a Topic created elsewhere.
-- `list all` is the read-only exception: it can list Topic summaries without selecting one or printing a Topic marker.
+- No Topic exists: create one.
+- Exactly one Topic exists and the current chat has no marker: Trailmap selects it.
+- Multiple Topics exist and the current chat has no marker: Trailmap lists IDs and titles and requires `use <id>`.
+- Resumed chat: the latest Topic marker restores selection.
+- New chat using an old Topic: run `use <topic-id>`.
 
-Selection is not stored globally, so separate chats can use different Topics without changing one another.
+```text
+$trailmap use study-ontology
+```
 
-## 3. Storage
+`list all` is the read-only exception: it can list all Topic summaries without selecting a Topic.
+
+## 3. Creating a Topic
+
+Explicit creation:
+
+```text
+$trailmap new Study ontology --id study-ontology
+```
+
+Without `--id`, Trailmap derives a short ASCII slug from the title. Topic IDs and filenames do not change after creation.
+
+If you first enter a multi-path command but no Topic exists yet, Trailmap asks for a Topic title. Your next reply can be only the title:
+
+```text
+$trailmap Study ontology, direction one is Palantir company background  direction two is ontology
+```
+
+After Trailmap asks for the Topic title:
+
+```text
+Study ontology
+```
+
+Trailmap creates the Topic and records the paths:
+
+```text
+Topic: study-ontology | Study ontology
+active: A Palantir company background
+pending: B ontology
+```
+
+This plain Topic-title reply is a one-time exception that only applies immediately after Trailmap asks for a Topic title. Ordinary conversation does not trigger Trailmap.
+
+## 4. Recording Multiple Paths
+
+When a Topic is selected, text after `$trailmap` may directly list two or more explicit paths:
+
+```text
+$trailmap Study ontology, direction one is Palantir company background  direction two is ontology
+```
+
+Trailmap only extracts and records path titles. It does not explain or analyze them. List markers such as `direction one is`, `direction two is`, `one is`, and `another is` are treated as separators; the stored path title is the actual title text.
+
+In an empty Topic, the first path becomes `active` and the rest become `pending`:
+
+```text
+active: A Palantir company background
+pending: B ontology
+```
+
+In a nonempty Topic, the shortcut adds pending paths and keeps the current active path unchanged:
+
+```text
+$trailmap Add two directions: LLM fundamentals, permission model
+```
+
+Possible result:
+
+```text
+pending: E LLM fundamentals
+pending: F permission model
+```
+
+If the text cannot be split into two or more clear paths, Trailmap writes nothing and asks for explicit `pending <title>` commands.
+
+## 5. Adding One Path
+
+### Add a Sibling
+
+```text
+$trailmap pending Add knowledge graph background
+```
+
+If the current active path is root `A`, this creates a pending sibling by default:
+
+```text
+active: A Palantir company background
+pending: B ontology
+pending: C Add knowledge graph background
+```
+
+### Add a Child
+
+```text
+$trailmap pending Company history --child
+```
+
+`--child` attaches the new path under the current active path:
+
+```text
+active: A Palantir company background
+pending: A1 Company history
+pending: B ontology
+pending: C Add knowledge graph background
+```
+
+### Choose a Key
+
+```text
+$trailmap pending Data modeling and SQL --key D
+```
+
+Result:
+
+```text
+pending: D Data modeling and SQL
+```
+
+Keys are unique within a Topic and do not change after creation.
+
+### Choose a Parent
+
+```text
+$trailmap pending Philosophical meaning of ontology --parent B
+```
+
+Result:
+
+```text
+pending: B1 Philosophical meaning of ontology
+```
+
+`--child` and `--parent <key>` cannot be combined.
+
+## 6. Viewing Paths
+
+### `list`
+
+```text
+$trailmap
+$trailmap list
+```
+
+Calling Trailmap with no subcommand is equivalent to `list`. `list` shows paths in tree order: each parent is followed by its descendants before the next sibling. It does not group all active, pending, paused, or closed paths into separate state buckets.
+
+Example:
+
+```text
+Topic: study-ontology | Study ontology
+active: A Palantir company background
+pending: A1 Company history
+pending: B ontology
+pending: B1 Philosophical meaning of ontology
+pending: C Add knowledge graph background
+pending: D Data modeling and SQL
+```
+
+### `show`
+
+```text
+$trailmap show
+$trailmap show B
+```
+
+`show` displays the current active path. If none is active, it displays a Topic summary. `show <key>` displays that path's title, parent, status, note, updates, and closure fields.
+
+### `list all`
+
+```text
+$trailmap list all
+```
+
+Shows all Topic IDs, titles, active keys, and path counts. It does not expand every Topic and does not change the current selection.
+
+## 7. Updating Path Notes
+
+### Update the Current Active Path
+
+```text
+$trailmap update Consulting for government
+```
+
+If `Consulting` is not an existing path key, the full text after `update` is stored as a note on the current active path. The path state does not change.
+
+### Update a Specific Key
+
+```text
+$trailmap update A Consulting for government
+```
+
+If `A` exactly matches an existing path key, the note is stored on A.
+
+### Pause the Current Active Path
+
+```text
+$trailmap update Waiting for more material --pause
+$trailmap update A Waiting for more material --pause
+```
+
+`--pause` can only target the current active path. On success, the path becomes `paused` and `topic.active` becomes `null`.
+
+If no note is supplied:
+
+```text
+$trailmap update
+$trailmap update A
+```
+
+Trailmap drafts one short note from the current chat and prints a complete `$trailmap update <key> <draft>` command. It writes nothing this time. A bare confirmation does not persist the note.
+
+## 8. Resuming a Path
+
+```text
+$trailmap resume B
+```
+
+Only `pending` or `paused` paths can be resumed normally. The old active path becomes `paused`, the target becomes `active`.
+
+Optionally leave a note on the old active path:
+
+```text
+$trailmap resume B --note "A has basic company background covered"
+```
+
+If the target path is closed, plain resume does not write. It only prints an explicit reopen command:
+
+```text
+resume B --reopen --note "<reason>"
+```
+
+Reopen requires a nonempty reason.
+
+## 9. Closing a Path
+
+### Close the Current Active Path
+
+```text
+$trailmap close done Company background is understood
+```
+
+If the first argument is `done`, `blocked`, or `discarded`, Trailmap closes the current active path.
+
+### Close a Specific Key
+
+```text
+$trailmap close A done Company background is understood
+$trailmap close B blocked Waiting for material
+$trailmap close C discarded No longer needed
+```
+
+Closing preserves the path and its update history. It changes the state and records classification, reason, and time. Closing the active path sets `topic.active` to `null` and never activates another path automatically.
+
+If no reason is supplied, Trailmap records `未填写关闭原因`; it does not infer one.
+
+## 10. Renaming a Path Title
+
+### Rename the Current Active Path
+
+```text
+$trailmap rename New path title
+```
+
+### Rename a Specific Path
+
+```text
+$trailmap rename A New path title
+```
+
+`rename` only changes the path title. It does not change the Topic title, Topic ID, filename, path key, parent, status, note, or updates.
+
+## 11. Mind Map
+
+### Mermaid graph
+
+```text
+$trailmap map
+```
+
+Outputs Mermaid `graph LR` from parent relationships:
+
+```mermaid
+graph LR
+  root("Study ontology") --> A("A Palantir company background active") & B("B ontology pending")
+  A --> A1("A1 Company history pending")
+  B --> B1("B1 Philosophical meaning of ontology pending")
+```
+
+### Plain Text Tree
+
+```text
+$trailmap map text
+```
+
+Outputs the same structure as a plain-text tree.
+
+## 12. Storage
+
+Trailmap data lives in the current workspace:
 
 ```text
 .trailmap/
   topics/
-    login-failure.json
-    billing-timeout.json
+    study-ontology.json
 ```
 
-A Topic file contains:
+A Topic file roughly looks like:
 
 ```json
 {
-  "id": "login-failure",
-  "title": "Login failure investigation",
+  "id": "study-ontology",
+  "title": "Study ontology",
   "active": "A",
   "paths": [
     {
       "key": "A",
-      "title": "Check token refresh",
+      "title": "Palantir company background",
       "status": "active",
       "parent": null,
       "note": "",
@@ -56,181 +369,24 @@ A Topic file contains:
 }
 ```
 
-Allowed path states are `active`, `pending`, `paused`, and `closed`. A Topic has at most one active path, and `topic.active` must contain its key or `null`.
+Each Topic is stored independently. Trailmap does not create `index.json` and does not store a global active Topic.
 
-Closed paths also contain:
+## 13. Output and Safety Rules
 
-```json
-{
-  "closed_as": "discarded",
-  "closed_reason": "Not the source of the 401 response",
-  "closed_at": "2026-07-02T10:30:00+08:00"
-}
-```
-
-Valid closing classifications are `done`, `blocked`, and `discarded`.
-
-## 4. Commands
-
-### `new <topic-title> [--id <id>]`
-
-Create and select an empty Topic.
-
-```text
-$trailmap new Login failure investigation --id login-failure
-```
-
-IDs are immutable ASCII slugs matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`. Without `--id`, Trailmap derives a short meaningful slug, translating or transliterating non-ASCII titles when needed, and adds `-2`, `-3`, and so on for collisions. It never overwrites an existing Topic.
-
-### `use <topic-id>`
-
-Select an existing Topic for the current chat without modifying its file.
-
-```text
-$trailmap use login-failure
-```
-
-### `pending <title>`
-
-Record a path without changing the current active path.
-
-```text
-$trailmap pending Check network retry
-$trailmap pending Check clock skew --key A2 --note "Low confidence" --child
-$trailmap pending Compare retry limits --parent B
-```
-
-Rules:
-
-- The title and optional note are stored verbatim.
-- Trailmap chooses a short unique key unless `--key` is supplied.
-- The first path in an empty Topic becomes a root `active` path.
-- With an active path, the default is a `pending` sibling with the same parent.
-- `--child` creates a pending child of the active path.
-- `--parent <key>` creates a pending child of that existing path.
-- `--child` and `--parent` cannot be combined.
-- With no active path, the default is a root pending path; `--child` is invalid.
-
-### `list` and `list all`
-
-`list` shows every path in the selected Topic, grouped by state. Calling Trailmap with no arguments is equivalent.
-
-```text
-$trailmap
-$trailmap list
-```
-
-`list all` shows one compact summary per Topic: ID, title, active key, and path counts. It does not select another Topic or expand every path.
-
-```text
-$trailmap list all
-```
-
-### `show [key]`
-
-`show` displays the current active path. If none is active, it displays a concise Topic summary. `show <key>` displays that exact path's title, parent, state, note, updates, and closure fields.
-
-```text
-$trailmap show
-$trailmap show B
-```
-
-### `update <key> [note] [--pause]`
-
-Append the supplied note without changing path status:
-
-```text
-$trailmap update A Token expiry has been ruled out
-```
-
-Trailmap stores the note exactly and does not inspect files or Git.
-
-If no note is supplied, Trailmap may compress the current chat into one short draft. It writes nothing and displays a complete `$trailmap update <key> <draft>` or `/trailmap update <key> <draft>` command. Explicitly invoking that command confirms the note; replying with a bare confirmation does not write it.
-
-Pause only the current active path:
-
-```text
-$trailmap update A Waiting for production logs --pause
-```
-
-This sets A to `paused` and `topic.active` to `null`. `--pause` is rejected for pending, paused, closed, or non-current paths.
-
-### `resume <key> [--note <note>]`
-
-Switch from the current active path to a pending or paused path:
-
-```text
-$trailmap resume B
-$trailmap resume B --note "A is waiting for logs"
-```
-
-The old active path becomes paused, the target becomes active, and `topic.active` changes to the target key. Trailmap does not generate a leave summary. An explicit `--note` is stored on the old active path only.
-
-The response shows the target title, note, and up to three recent updates, then stops without executing the path.
-
-For a closed target, plain `resume B` performs no write and prints the classification, reason, and:
-
-```text
-resume B --reopen --note "<reason>"
-```
-
-Reopening requires a nonempty reason. The old active path becomes paused, B becomes active, the old closure remains in B's update history, and B's top-level closure fields are removed.
-
-### `close <key> <classification> [reason]`
-
-```text
-$trailmap close A done Verified by the regression test
-$trailmap close B blocked Waiting for vendor logs
-$trailmap close C discarded Hypothesis disproved
-```
-
-Closing appends a historical update and preserves the path. When no reason is supplied, Trailmap records `未填写关闭原因`; it does not infer one. Closing the active path sets `topic.active` to `null` and never activates another path automatically. Closing an already closed path is rejected without changing its existing closure record.
-
-### `rename <topic-title>`
-
-Change only the selected Topic title:
-
-```text
-$trailmap rename Login incident follow-up
-```
-
-The Topic ID, filename, path keys, and path titles remain unchanged.
-
-### `map [text]`
-
-`map` outputs a Mermaid `graph LR` generated from parent references. Internal Mermaid node IDs are sanitized when a path key contains unsupported characters; labels retain the original key. Quotes, backslashes, and line breaks in labels are escaped:
-
-```text
-$trailmap map
-```
-
-```mermaid
-graph LR
-  root("Login failure investigation") --> A("A Check token refresh paused") & B("B Check network retry active")
-  A --> A1("A1 Check refresh race pending")
-```
-
-`map text` outputs the same hierarchy as plain text.
-
-## 5. Output Rules
-
-- Topic marker first.
-- Successful writes normally add one result line.
+- The Topic marker is always first.
+- Successful writes normally output one result line.
 - Read commands expand only the requested records.
-- `resume` may additionally display the target's existing record.
-- Errors, closed paths, and conflicts add only the instruction needed to recover.
-- No solution advice, execution promises, full JSON dumps, or unsolicited tutorials.
+- Trailmap does not output solution advice or promise to continue executing a path.
+- Trailmap does not dump full JSON.
+- Trailmap does not modify business code or Git.
+- Before writing the same Topic, Trailmap rereads the file and uses SHA-256 for best-effort conflict detection. This is not an atomic lock; avoid simultaneous writes to the same Topic.
 
-## 6. Confirmation Rules
+## 14. Unsupported Operations
 
-Explicit, valid commands write immediately. When Trailmap generates an `update <key>` draft because the user supplied no note, it writes nothing and asks the user to invoke the displayed complete Trailmap command. Invalid or ambiguous input never writes.
+Trailmap Lite has no delete command. To remove an open path from work while preserving history, close it:
 
-## 7. Concurrency
+```text
+$trailmap close A discarded No longer needed
+```
 
-Each write rereads the Topic immediately before replacement and compares its SHA-256 with the initial read. A mismatch rejects the write and asks the user to retry.
-
-This is best-effort conflict detection, not atomic locking. Two writers can still overwrite one another if both verify the same hash before either replacement. Avoid simultaneous writes to the same Topic. Different Topics use independent files and do not conflict.
-
-## 8. Unsupported Operations
-
-Trailmap Lite has no delete command and does not reinterpret legacy or unknown syntax. Use `close <key> discarded [reason]` to retain a path while removing it from open work. Edit or remove a Topic file manually only when intentional.
+Legacy `mark` prefixes, clean/informed modes, subagent, and worktree execution are not part of Trailmap Lite.

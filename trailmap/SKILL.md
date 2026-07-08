@@ -5,7 +5,7 @@ description: Use when the user explicitly invokes Codex $trailmap or Claude Code
 
 # Trailmap Lite
 
-Trailmap is a recording-only command skill. It records, selects, pauses or resumes, closes, and displays paths only after an explicit `$trailmap ...` or `/trailmap ...` invocation.
+Trailmap is a recording-only command skill. It records, selects, pauses or resumes, closes, and displays paths only after an explicit `$trailmap ...` or `/trailmap ...` invocation. The only non-invocation exception is the immediate plain-text answer to Trailmap's own pending Topic-title prompt, described below.
 
 Do not solve the underlying problem, request logs, inspect business code or Git, generate plans or advice, orchestrate agents, monitor work, or proactively remind the user. Never run a recorded path. After the concise command response, stop; the normal agent handles later work outside Trailmap.
 
@@ -43,7 +43,8 @@ For commands needing a current Topic, use the latest valid `Topic: <id> | <title
 
 When no marker exists:
 
-- Zero Topic files: ask for `new <topic-title>` and do not fabricate a marker.
+- Zero Topic files and a valid multi-path shortcut: ask for a Topic title and do not fabricate a marker or write yet. The user's immediate next reply may be either a plain Topic title or `new <topic-title>`; then create the Topic and record the pending shortcut into it.
+- Zero Topic files for any other command: ask for `new <topic-title>` and do not fabricate a marker.
 - One Topic file: select it.
 - Multiple Topic files: show only their IDs and titles and require `use <topic-id>`; do not guess.
 
@@ -53,13 +54,15 @@ After selection, every response begins exactly:
 Topic: <id> | <title>
 ```
 
-`new <title> [--id <id>]` writes immediately. An explicit ID must match `^[a-z0-9]+(?:-[a-z0-9]+)*$`, be unused, and never overwrite a file. Without `--id`, generate a short meaningful ASCII slug from the title, translating or transliterating non-ASCII titles when needed, and enforce the same pattern. If no clear slug can be generated, require an explicit ID. On collision, choose the first available `-2`, `-3`, and so on. Creation never changes any existing file.
+`new <title> [--id <id>]` writes immediately. An explicit ID must match `^[a-z0-9]+(?:-[a-z0-9]+)*$`, be unused, and never overwrite a file. Without `--id`, generate a short meaningful ASCII slug from the title, translating or transliterating non-ASCII titles when needed, and enforce the same pattern. If no clear slug can be generated, require an explicit ID. On collision, choose the first available `-2`, `-3`, and so on. Creation never changes any existing file. If the latest previous Trailmap user command in this chat was a valid multi-path shortcut that could not write only because zero Topic files existed, then immediately after creating the new Topic, record that shortcut into the new Topic using the multi-path rules; do not require the user to repeat it.
+
+If the latest assistant response was Trailmap asking for a Topic title after a zero-Topic multi-path shortcut, and the immediate next user reply is plain text without an explicit invocation, treat the entire reply as the Topic title. Create that Topic and record the pending multi-path shortcut into it using the same `new` and multi-path rules. This exception consumes only that one reply. Reject empty, ambiguous, command-like, or multi-line replies and ask for an explicit `$trailmap new <topic-title>` or `/trailmap new <topic-title>` command instead.
 
 `use <id>` verifies and reads that Topic, emits its marker, and writes nothing. Selection lasts only through the marker in chat.
 
 ## Command Grammar
 
-Arguments after the explicit invocation must match one command exactly. No arguments means `list`.
+Arguments after the explicit invocation must match one command exactly. No arguments means `list`. The only accepted input without an explicit invocation is the immediate Topic-title answer described under Topic Selection.
 
 ```text
 new <topic-title> [--id <id>]
@@ -67,23 +70,27 @@ use <topic-id>
 pending <title> [--key <key>] [--note <note>] [--child | --parent <key>]
 list [all]
 show [key]
-update <key> [note] [--pause]
+update [<key>] [note] [--pause]
 resume <key> [--note <note>]
 resume <key> --reopen --note <reason>
-close <key> <done|blocked|discarded> [reason]
-rename <topic-title>
+close [<key>] <done|blocked|discarded> [reason]
+rename [<key>] <path-title>
 map [text]
 ```
 
-Reject a `mark` prefix, natural-language branching forms, context-mode arguments, execution commands or flags, delete/remove requests, unknown commands, and unsupported options. For delete/remove, only suggest the applicable `close <key> discarded [reason]` form. Do not reinterpret or migrate invalid input; write nothing.
+A narrow multi-path shortcut is also valid after an explicit invocation: text with no command word that clearly lists two or more alternatives to record, such as `两个疑点，一个是：<title1>。另一个是：<title2>` or separate lines/bullets containing path titles. Use it only when the current Topic can be selected by the normal Topic Selection rules and the alternatives are explicit enough to extract titles without solving, summarizing, or inventing content. If the list is ambiguous, ask for explicit `pending <title>` commands and write nothing.
 
-Explicit, unambiguous write commands write immediately. The sole draft exception is `update <key>` with neither a note nor `--pause`, as described below.
+Reject a `mark` prefix, legacy natural-language branching forms beyond the narrow multi-path shortcut, context-mode arguments, execution commands or flags, delete/remove requests, unknown commands, and unsupported options. For delete/remove, only suggest the applicable `close [<key>] discarded [reason]` form. Do not reinterpret or migrate invalid input; write nothing.
+
+Explicit, unambiguous write commands write immediately. The sole draft exception is `update` with no supplied note and no `--pause`, as described below.
 
 ## Creating Paths
 
 For `pending`, store `<title>` verbatim and store a path-level note only when `--note` is explicitly supplied. Never rewrite the title or generate a goal, hypothesis, explanation, or leave summary.
 
 Check an explicit `--key` for uniqueness. Otherwise choose the shortest clear unused key, preferring `A`, `B`, `C` for roots and `<parent>1`, `<parent>2` for children. Once assigned, a key is immutable.
+
+For the multi-path shortcut, create one path per extracted title using the same automatic key and placement rules as repeated `pending` commands. In an empty Topic, the first extracted title becomes root `active` and the remaining extracted titles become root `pending` siblings. In a nonempty Topic, add all extracted titles as pending paths without changing the current active path. Preserve each extracted title exactly after removing only the list marker text (`一个是`, `另一个是`, bullets, numbering, or equivalent separators).
 
 Creation rules:
 
@@ -96,7 +103,7 @@ Creation rules:
 
 ## Read Commands
 
-`list` shows every path in the current Topic, compactly grouped by state, with key, verbatim title, and human state. No arguments is identical.
+`list` shows every path in the current Topic in tree order, with key, verbatim title, and human state on each line. No arguments is identical. Tree order means each root path is followed immediately by its descendants before the next root sibling: sort siblings by path key using natural key order (`A`, `A1`, `A2`, `B`, `B1`, `C`, `D`), not by status buckets. Do not group all active, pending, paused, or closed paths separately; the status is only a per-line label.
 
 `list all` shows Topic summaries only: ID, title, active key, and path counts. It does not change selection. It may run without a selected Topic; in that case output no Topic marker and remain unselected.
 
@@ -108,11 +115,11 @@ Creation rules:
 
 ### `update`
 
-`update <key> <note>` appends one update containing the exact supplied note and current time. It does not change status or infer any other field.
+`update [<key>] <note>` appends one update containing the exact supplied note and current time. It does not change status or infer any other field. Resolve an explicit key only when the first argument after `update` exactly matches an existing path key in the current Topic; then store the remaining text as the note for that path. If the first argument is not an exact existing key, treat the entire text after `update` as the note for the current active path. Reject active-default update when there is no current active path.
 
-With no note and no `--pause`, compress only the current chat into one short note draft. Do not inspect code or Git and do not infer status. Write nothing. Show the draft plus a complete platform-appropriate `$trailmap update <key> <draft>` or `/trailmap update <key> <draft>` command. The user confirms by explicitly invoking that complete command; a bare confirmation is not a persistence command.
+With no note and no `--pause`, compress only the current chat into one short note draft for the explicit key if supplied, otherwise for the current active path. Do not inspect code or Git and do not infer status. Write nothing. Show the draft plus a complete platform-appropriate `$trailmap update <key> <draft>` or `/trailmap update <key> <draft>` command, filling in the resolved active key when no key was supplied. The user confirms by explicitly invoking that complete command; a bare confirmation is not a persistence command.
 
-`--pause` is accepted only when the exact target is the current active path. Append the note with `status_after: "paused"` if supplied, set the path to `paused`, and set `topic.active` to `null`. With no note, append no update. Reject `--pause` for pending, paused, closed, or non-current paths without changing anything.
+`--pause` is accepted only when the resolved target is the current active path. Append the note with `status_after: "paused"` if supplied, set the path to `paused`, and set `topic.active` to `null`. With no note, append no update. Reject `--pause` for pending, paused, closed, or non-current paths without changing anything.
 
 ### `resume`
 
@@ -128,11 +135,11 @@ Reopening requires a nonempty `--note`. Pause the old active path, activate the 
 
 ### `close`
 
-Require exactly one classification: `done`, `blocked`, or `discarded`. If the target is already closed, reject the command, show its existing classification and reason, and change nothing. Otherwise store the supplied reason verbatim; when omitted, store and display `未填写关闭原因` without inference. Append a closing update with the same timestamp and reason, `status_after: "closed"`, and `closed_as`. Set the path status and top-level closure fields. If it was active, set `topic.active` to `null`; never activate another path.
+Require exactly one classification: `done`, `blocked`, or `discarded`. If the first argument after `close` is one of those classifications, close the current active path and treat the remaining text as the reason. If the first argument is not a classification, it must exactly match an existing path key, and the next argument must be the classification. Reject active-default close when there is no current active path. If the target is already closed, reject the command, show its existing classification and reason, and change nothing. Otherwise store the supplied reason verbatim; when omitted, store and display `未填写关闭原因` without inference. Append a closing update with the same timestamp and reason, `status_after: "closed"`, and `closed_as`. Set the path status and top-level closure fields. If it was active, set `topic.active` to `null`; never activate another path.
 
 ### `rename`
 
-Change only the current Topic's title to the verbatim supplied title, and use the new title in the response marker. Do not change its ID, filename, path keys, path titles, or any other Topic.
+Change only a path title. `rename <path-title>` renames the current active path to the verbatim supplied title. `rename <key> <path-title>` renames that exact path when `<key>` exactly matches an existing path key. Reject active-default rename when there is no current active path. Do not change the Topic title, Topic ID, filename, path key, parent, status, note, updates, closure fields, or any other Topic.
 
 ## Write Safety
 
