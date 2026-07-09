@@ -6,6 +6,19 @@ Trailmap Lite does one thing: it records the paths that appear while you work wi
 
 Use `$trailmap` in Codex and `/trailmap` in Claude Code. The examples below use `$trailmap`.
 
+## Quick Command Overview
+
+You can now use Trailmap through the `/trailmap` command. Main commands:
+
+| Command | Purpose |
+| --- | --- |
+| `/trailmap new <title> --id <id>` | Create a new Topic |
+| `/trailmap pending <title>` | Add a path to explore |
+| `/trailmap resume <key>` | Resume a path |
+| `/trailmap close <key> <done\|blocked\|discarded>` | Close a path |
+| `/trailmap map` | Show the path map |
+| `/trailmap list` | List all paths |
+
 ## 1. Core Model
 
 A chat usually maps to one Topic. A Topic contains multiple Paths. Each Path has a key, title, state, and notes.
@@ -360,6 +373,26 @@ A Topic file roughly looks like:
     {
       "key": "A",
       "title": "Palantir company background",
+      "status": "active",
+      "parent": null,
+      "note": "",
+      "updates": []
+    }
+  ]
+}
+```
+
+Another generic example:
+
+```json
+{
+  "id": "login-failure",
+  "title": "Login failure investigation",
+  "active": "A",
+  "paths": [
+    {
+      "key": "A",
+      "title": "Check token refresh",
       "status": "active",
       "parent": null,
       "note": "",
