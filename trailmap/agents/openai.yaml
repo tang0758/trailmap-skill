@@ -1,5 +1,5 @@
 interface:
-  display_name: "Trailmap Lite"
+  display_name: "Trailmap"
   short_description: "Remember paths without executing them"
   default_prompt: "Use $trailmap pending to record this alternative without changing the active path."
 

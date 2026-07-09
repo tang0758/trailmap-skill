@@ -1,4 +1,4 @@
-# Trailmap Lite
+# Trailmap
 
 > A recording-only Agent Skill for remembering alternative paths without letting the skill take over the work.
 
@@ -8,7 +8,7 @@
 
 AI-assisted work often exposes several plausible directions, but only one can be explored at a time. Alternatives get buried in the conversation, attempted paths are forgotten, and returning to an earlier idea requires reconstructing what happened.
 
-Trailmap Lite keeps a small workspace-local map:
+Trailmap keeps a small workspace-local map:
 
 ```text
 A  Check token refresh       paused
@@ -16,7 +16,7 @@ B  Check network retry       active
 C  Check cache write order   pending
 ```
 
-It records the map. It does not investigate, implement, inspect code, run Git commands, create agents, or advise how to solve a path. After a Trailmap command finishes, the normal coding agent continues the actual work.
+It records the map. It does not investigate, implement, inspect code, run Git commands, create agents, or advise how to solve a path. The current release line is Lite: recording only, no execution. After a Trailmap command finishes, the normal coding agent continues the actual work.
 
 ## Core Model
 

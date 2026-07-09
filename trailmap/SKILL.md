@@ -3,9 +3,9 @@ name: trailmap
 description: Use when the user explicitly invokes Codex $trailmap or Claude Code /trailmap to remember alternatives, track pending or paused paths, resume a recorded path, or view a decision tree.
 ---
 
-# Trailmap Lite
+# Trailmap
 
-Trailmap is a recording-only command skill. It records, selects, pauses or resumes, closes, and displays paths only after an explicit `$trailmap ...` or `/trailmap ...` invocation. The only non-invocation exception is the immediate plain-text answer to Trailmap's own pending Topic-title prompt, described below.
+Trailmap is a recording-only command skill. The current release line is Lite: it records, selects, pauses or resumes, closes, and displays paths only after an explicit `$trailmap ...` or `/trailmap ...` invocation. The only non-invocation exception is the immediate plain-text answer to Trailmap's own pending Topic-title prompt, described below.
 
 Do not solve the underlying problem, request logs, inspect business code or Git, generate plans or advice, orchestrate agents, monitor work, or proactively remind the user. Never run a recorded path. After the concise command response, stop; the normal agent handles later work outside Trailmap.
 

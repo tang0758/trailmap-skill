@@ -1,8 +1,8 @@
-# Trailmap Lite 使用说明
+# Trailmap 使用说明
 
 [English](USAGE.md) | [产品介绍](../README.zh-CN.md)
 
-Trailmap Lite 只做一件事：把你和 Agent 协作时出现的多条路径记录下来，方便之后提醒、切换、回看。它不参与路径本身的分析，不读取业务代码，不给排查建议。
+Trailmap 只做一件事：把你和 Agent 协作时出现的多条路径记录下来，方便之后提醒、切换、回看。当前发布线是 Lite：只记录，不执行。它不参与路径本身的分析，不读取业务代码，不给排查建议。
 
 Codex 中使用 `$trailmap`，Claude Code 中使用 `/trailmap`。下文统一用 `$trailmap` 举例。
 

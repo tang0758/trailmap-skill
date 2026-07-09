@@ -1,8 +1,8 @@
-# Trailmap Lite Usage
+# Trailmap Usage
 
 [中文](USAGE.zh-CN.md) | [Product overview](../README.md)
 
-Trailmap Lite does one thing: it records the paths that appear while you work with an agent, so you can remember, switch, and review them later. It does not analyze the work inside a path, inspect business code, or suggest debugging steps.
+Trailmap does one thing: it records the paths that appear while you work with an agent, so you can remember, switch, and review them later. The current release line is Lite: recording only, no execution. It does not analyze the work inside a path, inspect business code, or suggest debugging steps.
 
 Use `$trailmap` in Codex and `/trailmap` in Claude Code. The examples below use `$trailmap`.
 
